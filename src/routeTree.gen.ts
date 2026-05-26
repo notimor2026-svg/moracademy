@@ -9,54 +9,267 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
+import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedCertificatesRouteImport } from './routes/_authenticated/certificates'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as ApiAuthDuiLoginRouteImport } from './routes/api/auth/dui-login'
+import { Route as AuthenticatedQuizQuizIdRouteImport } from './routes/_authenticated/quiz.$quizId'
+import { Route as AuthenticatedCoursesCourseIdRouteImport } from './routes/_authenticated/courses.$courseId'
+import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authenticated/admin.employees'
+import { Route as AuthenticatedAdminCoursesRouteImport } from './routes/_authenticated/admin.courses'
+import { Route as AuthenticatedAdminEmployeesNewRouteImport } from './routes/_authenticated/admin.employees.new'
+import { Route as AuthenticatedAdminCoursesNewRouteImport } from './routes/_authenticated/admin.courses.new'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCertificatesRoute =
+  AuthenticatedCertificatesRouteImport.update({
+    id: '/certificates',
+    path: '/certificates',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
 const ApiAuthDuiLoginRoute = ApiAuthDuiLoginRouteImport.update({
   id: '/api/auth/dui-login',
   path: '/api/auth/dui-login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedQuizQuizIdRoute = AuthenticatedQuizQuizIdRouteImport.update({
+  id: '/quiz/$quizId',
+  path: '/quiz/$quizId',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCoursesCourseIdRoute =
+  AuthenticatedCoursesCourseIdRouteImport.update({
+    id: '/courses/$courseId',
+    path: '/courses/$courseId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminEmployeesRoute =
+  AuthenticatedAdminEmployeesRouteImport.update({
+    id: '/employees',
+    path: '/employees',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminCoursesRoute =
+  AuthenticatedAdminCoursesRouteImport.update({
+    id: '/courses',
+    path: '/courses',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminEmployeesNewRoute =
+  AuthenticatedAdminEmployeesNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => AuthenticatedAdminEmployeesRoute,
+  } as any)
+const AuthenticatedAdminCoursesNewRoute =
+  AuthenticatedAdminCoursesNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => AuthenticatedAdminCoursesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/certificates': typeof AuthenticatedCertificatesRoute
+  '/home': typeof AuthenticatedHomeRoute
+  '/team': typeof AuthenticatedTeamRoute
+  '/admin/courses': typeof AuthenticatedAdminCoursesRouteWithChildren
+  '/admin/employees': typeof AuthenticatedAdminEmployeesRouteWithChildren
+  '/courses/$courseId': typeof AuthenticatedCoursesCourseIdRoute
+  '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/api/auth/dui-login': typeof ApiAuthDuiLoginRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/admin/courses/new': typeof AuthenticatedAdminCoursesNewRoute
+  '/admin/employees/new': typeof AuthenticatedAdminEmployeesNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/certificates': typeof AuthenticatedCertificatesRoute
+  '/home': typeof AuthenticatedHomeRoute
+  '/team': typeof AuthenticatedTeamRoute
+  '/admin/courses': typeof AuthenticatedAdminCoursesRouteWithChildren
+  '/admin/employees': typeof AuthenticatedAdminEmployeesRouteWithChildren
+  '/courses/$courseId': typeof AuthenticatedCoursesCourseIdRoute
+  '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/api/auth/dui-login': typeof ApiAuthDuiLoginRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
+  '/admin/courses/new': typeof AuthenticatedAdminCoursesNewRoute
+  '/admin/employees/new': typeof AuthenticatedAdminEmployeesNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/certificates': typeof AuthenticatedCertificatesRoute
+  '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/team': typeof AuthenticatedTeamRoute
+  '/_authenticated/admin/courses': typeof AuthenticatedAdminCoursesRouteWithChildren
+  '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRouteWithChildren
+  '/_authenticated/courses/$courseId': typeof AuthenticatedCoursesCourseIdRoute
+  '/_authenticated/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/api/auth/dui-login': typeof ApiAuthDuiLoginRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/admin/courses/new': typeof AuthenticatedAdminCoursesNewRoute
+  '/_authenticated/admin/employees/new': typeof AuthenticatedAdminEmployeesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/auth/dui-login'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/admin'
+    | '/certificates'
+    | '/home'
+    | '/team'
+    | '/admin/courses'
+    | '/admin/employees'
+    | '/courses/$courseId'
+    | '/quiz/$quizId'
+    | '/api/auth/dui-login'
+    | '/admin/'
+    | '/admin/courses/new'
+    | '/admin/employees/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/auth/dui-login'
-  id: '__root__' | '/' | '/api/auth/dui-login'
+  to:
+    | '/'
+    | '/login'
+    | '/certificates'
+    | '/home'
+    | '/team'
+    | '/admin/courses'
+    | '/admin/employees'
+    | '/courses/$courseId'
+    | '/quiz/$quizId'
+    | '/api/auth/dui-login'
+    | '/admin'
+    | '/admin/courses/new'
+    | '/admin/employees/new'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/login'
+    | '/_authenticated/admin'
+    | '/_authenticated/certificates'
+    | '/_authenticated/home'
+    | '/_authenticated/team'
+    | '/_authenticated/admin/courses'
+    | '/_authenticated/admin/employees'
+    | '/_authenticated/courses/$courseId'
+    | '/_authenticated/quiz/$quizId'
+    | '/api/auth/dui-login'
+    | '/_authenticated/admin/'
+    | '/_authenticated/admin/courses/new'
+    | '/_authenticated/admin/employees/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  LoginRoute: typeof LoginRoute
   ApiAuthDuiLoginRoute: typeof ApiAuthDuiLoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/team': {
+      id: '/_authenticated/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof AuthenticatedTeamRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/home': {
+      id: '/_authenticated/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/certificates': {
+      id: '/_authenticated/certificates'
+      path: '/certificates'
+      fullPath: '/certificates'
+      preLoaderRoute: typeof AuthenticatedCertificatesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
     }
     '/api/auth/dui-login': {
       id: '/api/auth/dui-login'
@@ -65,23 +278,123 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthDuiLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/quiz/$quizId': {
+      id: '/_authenticated/quiz/$quizId'
+      path: '/quiz/$quizId'
+      fullPath: '/quiz/$quizId'
+      preLoaderRoute: typeof AuthenticatedQuizQuizIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/courses/$courseId': {
+      id: '/_authenticated/courses/$courseId'
+      path: '/courses/$courseId'
+      fullPath: '/courses/$courseId'
+      preLoaderRoute: typeof AuthenticatedCoursesCourseIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/employees': {
+      id: '/_authenticated/admin/employees'
+      path: '/employees'
+      fullPath: '/admin/employees'
+      preLoaderRoute: typeof AuthenticatedAdminEmployeesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/courses': {
+      id: '/_authenticated/admin/courses'
+      path: '/courses'
+      fullPath: '/admin/courses'
+      preLoaderRoute: typeof AuthenticatedAdminCoursesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/employees/new': {
+      id: '/_authenticated/admin/employees/new'
+      path: '/new'
+      fullPath: '/admin/employees/new'
+      preLoaderRoute: typeof AuthenticatedAdminEmployeesNewRouteImport
+      parentRoute: typeof AuthenticatedAdminEmployeesRoute
+    }
+    '/_authenticated/admin/courses/new': {
+      id: '/_authenticated/admin/courses/new'
+      path: '/new'
+      fullPath: '/admin/courses/new'
+      preLoaderRoute: typeof AuthenticatedAdminCoursesNewRouteImport
+      parentRoute: typeof AuthenticatedAdminCoursesRoute
+    }
   }
 }
 
+interface AuthenticatedAdminCoursesRouteChildren {
+  AuthenticatedAdminCoursesNewRoute: typeof AuthenticatedAdminCoursesNewRoute
+}
+
+const AuthenticatedAdminCoursesRouteChildren: AuthenticatedAdminCoursesRouteChildren =
+  {
+    AuthenticatedAdminCoursesNewRoute: AuthenticatedAdminCoursesNewRoute,
+  }
+
+const AuthenticatedAdminCoursesRouteWithChildren =
+  AuthenticatedAdminCoursesRoute._addFileChildren(
+    AuthenticatedAdminCoursesRouteChildren,
+  )
+
+interface AuthenticatedAdminEmployeesRouteChildren {
+  AuthenticatedAdminEmployeesNewRoute: typeof AuthenticatedAdminEmployeesNewRoute
+}
+
+const AuthenticatedAdminEmployeesRouteChildren: AuthenticatedAdminEmployeesRouteChildren =
+  {
+    AuthenticatedAdminEmployeesNewRoute: AuthenticatedAdminEmployeesNewRoute,
+  }
+
+const AuthenticatedAdminEmployeesRouteWithChildren =
+  AuthenticatedAdminEmployeesRoute._addFileChildren(
+    AuthenticatedAdminEmployeesRouteChildren,
+  )
+
+interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminCoursesRoute: typeof AuthenticatedAdminCoursesRouteWithChildren
+  AuthenticatedAdminEmployeesRoute: typeof AuthenticatedAdminEmployeesRouteWithChildren
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+}
+
+const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminCoursesRoute: AuthenticatedAdminCoursesRouteWithChildren,
+  AuthenticatedAdminEmployeesRoute:
+    AuthenticatedAdminEmployeesRouteWithChildren,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+}
+
+const AuthenticatedAdminRouteWithChildren =
+  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedCertificatesRoute: typeof AuthenticatedCertificatesRoute
+  AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
+  AuthenticatedCoursesCourseIdRoute: typeof AuthenticatedCoursesCourseIdRoute
+  AuthenticatedQuizQuizIdRoute: typeof AuthenticatedQuizQuizIdRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedCertificatesRoute: AuthenticatedCertificatesRoute,
+  AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedTeamRoute: AuthenticatedTeamRoute,
+  AuthenticatedCoursesCourseIdRoute: AuthenticatedCoursesCourseIdRoute,
+  AuthenticatedQuizQuizIdRoute: AuthenticatedQuizQuizIdRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  LoginRoute: LoginRoute,
   ApiAuthDuiLoginRoute: ApiAuthDuiLoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
