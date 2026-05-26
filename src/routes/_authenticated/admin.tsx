@@ -11,6 +11,7 @@ function AdminLayout() {
     { to: "/admin/courses", label: "Cursos" },
     { to: "/admin/assignments", label: "Asignaciones" },
     { to: "/admin/reports", label: "Reportes" },
+    { to: "/admin/audit", label: "Auditoría" },
   ];
   return (
     <div className="mx-auto max-w-7xl space-y-6">

@@ -328,3 +328,277 @@ export const ensureFirstRrhh = createServerFn({ method: "POST" })
       .insert({ user_id: context.userId, role: "rrhh" });
     return { promoted: true };
   });
+
+// ============== AUDIT LOG ==============
+export const listAuditLog = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        entidad: z.string().optional(),
+        accion: z.string().optional(),
+        since: z.string().optional(),
+        limit: z.number().min(1).max(500).default(200),
+      })
+      .partial()
+      .parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    let q = supabaseAdmin
+      .from("audit_log")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(data.limit ?? 200);
+    if (data.entidad) q = q.eq("entidad", data.entidad);
+    if (data.accion) q = q.eq("accion", data.accion);
+    if (data.since) q = q.gte("created_at", data.since);
+    const { data: rows } = await q;
+    if (!rows?.length) return { rows: [], actors: {} as Record<string, string> };
+    const actorIds = Array.from(new Set(rows.map((r) => r.actor_id).filter(Boolean))) as string[];
+    let actors: Record<string, string> = {};
+    if (actorIds.length) {
+      const { data: emps } = await supabaseAdmin
+        .from("employees")
+        .select("auth_user_id, nombre")
+        .in("auth_user_id", actorIds);
+      actors = Object.fromEntries((emps ?? []).map((e) => [e.auth_user_id!, e.nombre]));
+    }
+    return { rows, actors };
+  });
+
+// ============== COURSE EDITOR ==============
+export const getCourseEdit = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ course_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    const [{ data: course }, { data: lessons }, { data: quizzes }] = await Promise.all([
+      supabaseAdmin.from("courses").select("*").eq("id", data.course_id).single(),
+      supabaseAdmin.from("course_lessons").select("*").eq("course_id", data.course_id).order("orden"),
+      supabaseAdmin.from("quizzes").select("*").eq("course_id", data.course_id).order("posicion"),
+    ]);
+    return { course, lessons: lessons ?? [], quizzes: quizzes ?? [] };
+  });
+
+export const updateCourse = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        course_id: z.string().uuid(),
+        nombre: z.string().min(2).max(160),
+        descripcion: z.string().max(2000).optional().nullable(),
+        tipo: z.enum(["induccion", "constante"]),
+        estado: z.enum(["borrador", "activa", "archivada"]),
+        nota_minima: z.number().min(50).max(100),
+        intentos_max: z.number().min(1).max(10),
+        duracion_min: z.number().min(1).max(1000).optional().nullable(),
+        permite_certificado: z.boolean(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    const { course_id, ...patch } = data;
+    const { error } = await supabaseAdmin.from("courses").update(patch).eq("id", course_id);
+    if (error) throw new Error(error.message);
+    await supabaseAdmin.from("audit_log").insert({
+      actor_id: context.userId,
+      accion: "course.update",
+      entidad: "courses",
+      entidad_id: course_id,
+      payload: patch,
+    });
+    return { ok: true };
+  });
+
+export const upsertLesson = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        id: z.string().uuid().optional(),
+        course_id: z.string().uuid(),
+        titulo: z.string().min(1).max(200),
+        tipo: z.enum(["texto", "video_url", "enlace", "pdf"]).default("texto"),
+        contenido: z.string().optional().nullable(),
+        url_externa: z.string().optional().nullable(),
+        obligatorio: z.boolean().default(true),
+        orden: z.number().min(0).max(9999),
+        duracion_min: z.number().min(0).max(600).optional().nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    const payload = {
+      ...data,
+      text_excerpt: data.contenido?.slice(0, 4000) ?? null,
+    };
+    if (data.id) {
+      const { error } = await supabaseAdmin.from("course_lessons").update(payload).eq("id", data.id);
+      if (error) throw new Error(error.message);
+      return { id: data.id };
+    }
+    const { data: ins, error } = await supabaseAdmin
+      .from("course_lessons")
+      .insert(payload)
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: ins.id };
+  });
+
+export const deleteLesson = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    const { error } = await supabaseAdmin.from("course_lessons").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const reorderLessons = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        order: z.array(z.object({ id: z.string().uuid(), orden: z.number() })).min(1),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    await Promise.all(
+      data.order.map((o) =>
+        supabaseAdmin.from("course_lessons").update({ orden: o.orden }).eq("id", o.id),
+      ),
+    );
+    return { ok: true };
+  });
+
+// ============== NOTIFICATIONS DISPATCHER ==============
+const SUBJECTS: Record<string, string> = {
+  asignacion: "Tienes una nueva capacitación asignada",
+  vencimiento: "Capacitación próxima a vencer",
+  bloqueo: "Tu capacitación ha sido bloqueada",
+  aprobacion: "¡Felicidades! Has aprobado una capacitación",
+  certificado: "Tu certificado está listo",
+};
+
+export const dispatchNotifications = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireRrhh(context.userId);
+    const { data: pending } = await supabaseAdmin
+      .from("notifications_outbox")
+      .select("*")
+      .eq("status", "pending")
+      .limit(100);
+    if (!pending?.length) return { sent: 0, failed: 0 };
+
+    const apiKey = process.env.LOVABLE_API_KEY;
+    const senderDomain = process.env.LOVABLE_EMAIL_DOMAIN ?? "notify.saram.com.sv";
+    const from = `MOR ACADEMY <no-reply@${senderDomain}>`;
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const n of pending) {
+      try {
+        const payload = (n.payload ?? {}) as Record<string, any>;
+        let to: string | null = n.destinatario ?? null;
+
+        // Resolve recipient
+        if (!to || to === "rrhh") {
+          if (payload.employee_id) {
+            const { data: emp } = await supabaseAdmin
+              .from("employees")
+              .select("email, nombre")
+              .eq("id", payload.employee_id)
+              .maybeSingle();
+            payload.empleado_nombre = emp?.nombre;
+            to = emp?.email ?? null;
+          }
+          if (n.destinatario === "rrhh") {
+            // Send to first RRHH user
+            const { data: roles } = await supabaseAdmin
+              .from("user_roles")
+              .select("user_id")
+              .eq("role", "rrhh")
+              .limit(1);
+            if (roles?.[0]) {
+              const { data: rrhhEmp } = await supabaseAdmin
+                .from("employees")
+                .select("email")
+                .eq("auth_user_id", roles[0].user_id)
+                .maybeSingle();
+              to = rrhhEmp?.email ?? to;
+            }
+          }
+        }
+
+        const subject = SUBJECTS[n.tipo] ?? `Notificación MOR ACADEMY: ${n.tipo}`;
+        const body = `<div style="font-family:Inter,system-ui,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1f2a44">
+          <h2 style="margin:0 0 12px">${subject}</h2>
+          <p>Hola${payload.empleado_nombre ? ` ${payload.empleado_nombre}` : ""},</p>
+          <p>Esta es una notificación automática de MOR ACADEMY.</p>
+          <pre style="background:#f4f6fb;padding:12px;border-radius:8px;font-size:12px;overflow:auto">${JSON.stringify(payload, null, 2)}</pre>
+          <p style="color:#64748b;font-size:12px">Si no esperabas este correo, ignóralo.</p>
+        </div>`;
+
+        if (!to || !apiKey) {
+          // Mark as skipped (no recipient or no key); use 'failed' to keep schema simple
+          await supabaseAdmin
+            .from("notifications_outbox")
+            .update({ status: "failed" })
+            .eq("id", n.id);
+          failed++;
+          continue;
+        }
+
+        const res = await fetch("https://ai.gateway.lovable.dev/v1/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({ from, to: [to], subject, html: body }),
+        });
+
+        if (res.ok) {
+          await supabaseAdmin.from("notifications_outbox").update({ status: "sent" }).eq("id", n.id);
+          sent++;
+        } else {
+          await supabaseAdmin.from("notifications_outbox").update({ status: "failed" }).eq("id", n.id);
+          failed++;
+        }
+      } catch {
+        await supabaseAdmin.from("notifications_outbox").update({ status: "failed" }).eq("id", n.id);
+        failed++;
+      }
+    }
+
+    await supabaseAdmin.from("audit_log").insert({
+      actor_id: context.userId,
+      accion: "notifications.dispatch",
+      entidad: "notifications_outbox",
+      payload: { sent, failed },
+    });
+
+    return { sent, failed };
+  });
+
+export const listOutbox = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireRrhh(context.userId);
+    const { data } = await supabaseAdmin
+      .from("notifications_outbox")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    return data ?? [];
+  });

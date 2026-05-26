@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listMyAssignments } from "@/lib/academy.functions";
+import { listMyAssignments, gamificationOverview } from "@/lib/academy.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, Trophy } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, Trophy, Award, Crown } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/home")({ component: Home });
 
@@ -20,12 +20,18 @@ const estadoStyles: Record<string, { label: string; cls: string; icon: typeof Cl
 
 function Home() {
   const fn = useServerFn(listMyAssignments);
+  const fnGame = useServerFn(gamificationOverview);
   const { data, isLoading } = useQuery({ queryKey: ["my-assignments"], queryFn: () => fn() });
+  const game = useQuery({ queryKey: ["gamification"], queryFn: () => fnGame() });
 
   const assignments = data?.assignments ?? [];
   const induction = assignments.filter((a) => a.origen === "induccion");
   const ongoing = assignments.filter((a) => a.origen !== "induccion");
   const aprobados = assignments.filter((a) => a.estado === "aprobado").length;
+
+  const myBadges = game.data?.myBadges ?? [];
+  const allBadges = game.data?.allBadges ?? [];
+  const ranking = game.data?.ranking ?? [];
 
   return (
     <div className="mx-auto max-w-6xl space-y-10">
@@ -45,11 +51,59 @@ function Home() {
       <section className="grid gap-4 sm:grid-cols-3">
         <KPI label="Asignados" value={assignments.length} icon={BookOpen} />
         <KPI label="Aprobados" value={aprobados} icon={Trophy} tone="gold" />
-        <KPI label="XP acumulado" value={data?.employee?.xp ?? 0} icon={Trophy} />
+        <KPI label="XP acumulado" value={game.data?.me?.xp ?? data?.employee?.xp ?? 0} icon={Trophy} />
       </section>
 
       <Section title="Inducción" empty="No tienes capacitaciones de inducción asignadas." items={induction} loading={isLoading} />
       <Section title="Capacitaciones continuas" empty="No tienes capacitaciones continuas activas." items={ongoing} loading={isLoading} />
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        <Card className="border-border/60">
+          <CardContent className="space-y-4 p-6">
+            <div className="flex items-center gap-2">
+              <Award className="h-5 w-5 text-gold" />
+              <h2 className="font-display text-xl font-semibold">Tus insignias</h2>
+              <Badge variant="secondary" className="ml-auto">{myBadges.length}/{allBadges.length}</Badge>
+            </div>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+              {allBadges.map((b: any) => {
+                const owned = myBadges.some((m: any) => m.badge_id === b.id);
+                return (
+                  <div key={b.id} className={`flex flex-col items-center rounded-lg border p-3 text-center transition ${owned ? "border-gold/40 bg-gold/10" : "border-border/60 opacity-40 grayscale"}`}>
+                    <Award className={`mb-1 h-6 w-6 ${owned ? "text-gold-foreground" : "text-muted-foreground"}`} />
+                    <p className="text-xs font-medium leading-tight">{b.nombre}</p>
+                  </div>
+                );
+              })}
+              {allBadges.length === 0 && <p className="col-span-full text-center text-sm text-muted-foreground">Aún no hay insignias.</p>}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60">
+          <CardContent className="space-y-4 p-6">
+            <div className="flex items-center gap-2">
+              <Crown className="h-5 w-5 text-gold" />
+              <h2 className="font-display text-xl font-semibold">Ranking general</h2>
+            </div>
+            <ol className="space-y-2">
+              {ranking.map((r: any) => (
+                <li key={r.id} className={`flex items-center justify-between rounded-md px-3 py-2 ${r.isMe ? "bg-primary/10 ring-1 ring-primary/30" : ""}`}>
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 text-center font-mono text-sm text-muted-foreground">#{r.rank}</span>
+                    <div>
+                      <p className="text-sm font-medium">{r.nombre}{r.isMe && <span className="ml-1 text-xs text-primary">(tú)</span>}</p>
+                      {r.area && <p className="text-xs text-muted-foreground">{r.area}</p>}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-gold-foreground">{r.xp} XP</Badge>
+                </li>
+              ))}
+              {ranking.length === 0 && <p className="text-center text-sm text-muted-foreground">Sin datos todavía.</p>}
+            </ol>
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }

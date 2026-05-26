@@ -373,3 +373,95 @@ export const adminMetrics = createServerFn({ method: "GET" })
       certificados: certs.data?.length ?? 0,
     };
   });
+
+// ============== GAMIFICATION ==============
+export const gamificationOverview = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: emp } = await supabase
+      .from("employees")
+      .select("id, nombre, xp, area")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+
+    // Award badges based on activity (idempotent)
+    if (emp) await awardBadgesFor(emp.id);
+
+    const [{ data: myBadges }, { data: allBadges }, { data: top }] = await Promise.all([
+      supabaseAdmin
+        .from("employee_badges")
+        .select("badge_id, awarded_at, badges(nombre, descripcion, icono, slug)")
+        .eq("employee_id", emp?.id ?? "00000000-0000-0000-0000-000000000000"),
+      supabaseAdmin.from("badges").select("*").order("nombre"),
+      supabaseAdmin
+        .from("employees")
+        .select("id, nombre, area, xp")
+        .order("xp", { ascending: false })
+        .limit(10),
+    ]);
+
+    return {
+      me: emp,
+      myBadges: myBadges ?? [],
+      allBadges: allBadges ?? [],
+      ranking: (top ?? []).map((r, i) => ({ ...r, rank: i + 1, isMe: r.id === emp?.id })),
+    };
+  });
+
+async function awardBadgesFor(employeeId: string) {
+  const { data: badges } = await supabaseAdmin.from("badges").select("id, slug");
+  if (!badges?.length) return;
+  const bySlug = Object.fromEntries(badges.map((b) => [b.slug, b.id]));
+
+  const [{ data: assigns }, { data: attempts }, { data: certs }, { data: already }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("course_assignments")
+        .select("estado, origen, intentos_consumidos, mejor_nota")
+        .eq("employee_id", employeeId),
+      supabaseAdmin
+        .from("quiz_attempts")
+        .select("aprobado, score, intento_num")
+        .eq("employee_id", employeeId),
+      supabaseAdmin
+        .from("certificates")
+        .select("id, nota")
+        .eq("employee_id", employeeId),
+      supabaseAdmin
+        .from("employee_badges")
+        .select("badge_id")
+        .eq("employee_id", employeeId),
+    ]);
+
+  const owned = new Set((already ?? []).map((b) => b.badge_id));
+  const toAward: { employee_id: string; badge_id: string }[] = [];
+  const add = (slug: string) => {
+    const id = bySlug[slug];
+    if (id && !owned.has(id)) toAward.push({ employee_id: employeeId, badge_id: id });
+  };
+
+  add("primer_acceso");
+  if ((attempts ?? []).length) add("primer_quiz");
+  const inducciones = (assigns ?? []).filter((a) => a.origen === "induccion");
+  if (inducciones.length && inducciones.every((a) => a.estado === "aprobado")) add("induccion_completa");
+  if ((certs ?? []).length) add("primer_certificado");
+  if ((certs ?? []).some((c) => (c.nota ?? 0) >= 95)) add("excelencia");
+  if ((attempts ?? []).some((a) => a.aprobado && a.intento_num === 1)) add("sin_reintentos");
+
+  if (toAward.length) {
+    await supabaseAdmin.from("employee_badges").insert(toAward);
+    // +50 XP per badge
+    const xpGain = toAward.length * 50;
+    await supabaseAdmin.rpc;
+    const { data: cur } = await supabaseAdmin
+      .from("employees")
+      .select("xp")
+      .eq("id", employeeId)
+      .single();
+    await supabaseAdmin
+      .from("employees")
+      .update({ xp: (cur?.xp ?? 0) + xpGain })
+      .eq("id", employeeId);
+  }
+}
