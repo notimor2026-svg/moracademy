@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, BookOpen, Pencil } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/admin/courses")({ component: CourseList });
+export const Route = createFileRoute("/_authenticated/admin/courses/")({ component: CourseList });
 
 function CourseList() {
   const { data } = useQuery({

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, UserPlus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-export const Route = createFileRoute("/_authenticated/admin/employees")({ component: EmpList });
+export const Route = createFileRoute("/_authenticated/admin/employees/")({ component: EmpList });
 
 function EmpList() {
   const fn = useServerFn(listEmployees);
