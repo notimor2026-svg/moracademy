@@ -143,7 +143,53 @@ export const createEmployee = createServerFn({ method: "POST" })
           },
           { onConflict: "employee_id,course_id", ignoreDuplicates: true },
         );
+    }
+
+    // 4b) Genera asignaciones desde capacitaciones requeridas en MOR Talent Pipeline
+    if (
+      (data.tipo_proceso === "induccion" || data.tipo_proceso === "ambos") &&
+      data.pipeline_required_trainings?.length
+    ) {
+      for (const nombre of data.pipeline_required_trainings) {
+        const trimmed = nombre.trim();
+        if (!trimmed) continue;
+        let courseId: string;
+        const { data: existing } = await supabaseAdmin
+          .from("courses")
+          .select("id")
+          .eq("nombre", trimmed)
+          .eq("tipo", "induccion")
+          .maybeSingle();
+        if (existing) {
+          courseId = existing.id;
+        } else {
+          const { data: nc, error: ncErr } = await supabaseAdmin
+            .from("courses")
+            .insert({
+              nombre: trimmed,
+              tipo: "induccion",
+              duracion_min: 30,
+              estado: "borrador",
+              descripcion:
+                "Capacitación obligatoria importada desde MOR Talent Pipeline. Pendiente de cargar material y evaluación.",
+              created_by: context.userId,
+            })
+            .select("id")
+            .single();
+          if (ncErr) throw new Error(ncErr.message);
+          courseId = nc.id;
+        }
+        await supabaseAdmin.from("course_assignments").upsert(
+          {
+            employee_id: emp.id,
+            course_id: courseId,
+            origen: "induccion",
+          },
+          { onConflict: "employee_id,course_id", ignoreDuplicates: true },
+        );
       }
+    }
+
     }
 
     await supabaseAdmin.from("audit_log").insert({
