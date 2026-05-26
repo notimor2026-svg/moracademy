@@ -56,8 +56,8 @@ function LoginPage() {
   return (
     <main className="relative grid min-h-screen lg:grid-cols-2">
       <section className="relative hidden bg-gradient-hero text-primary-foreground lg:flex lg:flex-col lg:justify-between lg:p-12">
-        <div className="flex justify-center -my-8">
-          <MorAcademyLogo size={320} className="drop-shadow-2xl" />
+        <div className="flex flex-1 items-center justify-center">
+          <MorAcademyLogo size={360} className="drop-shadow-2xl" />
         </div>
         <div className="space-y-6">
           <h1 className="font-display text-5xl leading-tight">
