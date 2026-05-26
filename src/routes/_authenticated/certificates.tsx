@@ -14,7 +14,7 @@ function Certs() {
       const { data } = await supabase
         .from("certificates")
         .select("*, courses(nombre)")
-        .order("emitido_at", { ascending: false });
+        .order("fecha_emision", { ascending: false });
       return data ?? [];
     },
   });
