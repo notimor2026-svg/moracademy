@@ -20,6 +20,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as ApiAuthDuiLoginRouteImport } from './routes/api/auth/dui-login'
 import { Route as AuthenticatedQuizQuizIdRouteImport } from './routes/_authenticated/quiz.$quizId'
 import { Route as AuthenticatedCoursesCourseIdRouteImport } from './routes/_authenticated/courses.$courseId'
+import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated/admin.reports'
 import { Route as AuthenticatedAdminEmployeesRouteImport } from './routes/_authenticated/admin.employees'
 import { Route as AuthenticatedAdminCoursesRouteImport } from './routes/_authenticated/admin.courses'
 import { Route as AuthenticatedAdminAssignmentsRouteImport } from './routes/_authenticated/admin.assignments'
@@ -82,6 +83,12 @@ const AuthenticatedCoursesCourseIdRoute =
     path: '/courses/$courseId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminReportsRoute =
+  AuthenticatedAdminReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminEmployeesRoute =
   AuthenticatedAdminEmployeesRouteImport.update({
     id: '/employees',
@@ -123,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/admin/assignments': typeof AuthenticatedAdminAssignmentsRoute
   '/admin/courses': typeof AuthenticatedAdminCoursesRouteWithChildren
   '/admin/employees': typeof AuthenticatedAdminEmployeesRouteWithChildren
+  '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/courses/$courseId': typeof AuthenticatedCoursesCourseIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/api/auth/dui-login': typeof ApiAuthDuiLoginRoute
@@ -139,6 +147,7 @@ export interface FileRoutesByTo {
   '/admin/assignments': typeof AuthenticatedAdminAssignmentsRoute
   '/admin/courses': typeof AuthenticatedAdminCoursesRouteWithChildren
   '/admin/employees': typeof AuthenticatedAdminEmployeesRouteWithChildren
+  '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/courses/$courseId': typeof AuthenticatedCoursesCourseIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/api/auth/dui-login': typeof ApiAuthDuiLoginRoute
@@ -158,6 +167,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/assignments': typeof AuthenticatedAdminAssignmentsRoute
   '/_authenticated/admin/courses': typeof AuthenticatedAdminCoursesRouteWithChildren
   '/_authenticated/admin/employees': typeof AuthenticatedAdminEmployeesRouteWithChildren
+  '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/_authenticated/courses/$courseId': typeof AuthenticatedCoursesCourseIdRoute
   '/_authenticated/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/api/auth/dui-login': typeof ApiAuthDuiLoginRoute
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/admin/assignments'
     | '/admin/courses'
     | '/admin/employees'
+    | '/admin/reports'
     | '/courses/$courseId'
     | '/quiz/$quizId'
     | '/api/auth/dui-login'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/admin/assignments'
     | '/admin/courses'
     | '/admin/employees'
+    | '/admin/reports'
     | '/courses/$courseId'
     | '/quiz/$quizId'
     | '/api/auth/dui-login'
@@ -211,6 +223,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/assignments'
     | '/_authenticated/admin/courses'
     | '/_authenticated/admin/employees'
+    | '/_authenticated/admin/reports'
     | '/_authenticated/courses/$courseId'
     | '/_authenticated/quiz/$quizId'
     | '/api/auth/dui-login'
@@ -305,6 +318,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCoursesCourseIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/reports': {
+      id: '/_authenticated/admin/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AuthenticatedAdminReportsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/employees': {
       id: '/_authenticated/admin/employees'
       path: '/employees'
@@ -375,6 +395,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAssignmentsRoute: typeof AuthenticatedAdminAssignmentsRoute
   AuthenticatedAdminCoursesRoute: typeof AuthenticatedAdminCoursesRouteWithChildren
   AuthenticatedAdminEmployeesRoute: typeof AuthenticatedAdminEmployeesRouteWithChildren
+  AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
@@ -383,6 +404,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminCoursesRoute: AuthenticatedAdminCoursesRouteWithChildren,
   AuthenticatedAdminEmployeesRoute:
     AuthenticatedAdminEmployeesRouteWithChildren,
+  AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
