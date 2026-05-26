@@ -56,7 +56,10 @@ function LoginPage() {
   return (
     <main className="relative grid min-h-screen lg:grid-cols-2">
       <section className="relative hidden bg-gradient-hero text-primary-foreground lg:flex lg:flex-col lg:justify-between lg:p-12">
-        <MorAcademyLogo size={56} />
+        <MorAcademyLogo size={96} />
+        <div className="flex justify-center -my-8">
+          <MorAcademyLogo size={320} className="drop-shadow-2xl" />
+        </div>
         <div className="space-y-6">
           <h1 className="font-display text-5xl leading-tight">
             Formación que <span className="text-gold">eleva</span> al equipo MOR.
@@ -77,8 +80,8 @@ function LoginPage() {
 
       <section className="flex items-center justify-center bg-background p-6 sm:p-10">
         <Card className="w-full max-w-md border-border/60 p-8 shadow-elevated">
-          <div className="mb-6 flex items-center gap-3 lg:hidden">
-            <MorAcademyLogo size={40} />
+          <div className="mb-6 flex items-center justify-center gap-3 lg:hidden">
+            <MorAcademyLogo size={96} />
           </div>
           <h2 className="font-display text-2xl font-semibold text-foreground">
             Inicia sesión
