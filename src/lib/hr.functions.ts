@@ -238,10 +238,12 @@ export const listPipelineRequisitions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<PipelineRequisition[]> => {
     await requireRrhh(context.userId);
+    // Incluye plazas cubiertas + cualquier requisición que aún no esté cerrada
+    // (es decir, status != 'cerrada'). Así se ven también las abiertas/en proceso.
     const url =
       `${PIPELINE_URL}/rest/v1/requisitions` +
-      `?select=id,code,position_title,management_area,required_trainings,departments(name)` +
-      `&status=eq.plaza_cubierta&order=updated_at.desc&limit=100`;
+      `?select=id,code,position_title,management_area,required_trainings,status,departments(name)` +
+      `&status=neq.cerrada&order=updated_at.desc&limit=200`;
     const res = await fetch(url, {
       headers: { apikey: PIPELINE_ANON, Authorization: `Bearer ${PIPELINE_ANON}` },
     });
