@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Award, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { downloadCertificate } from "@/lib/cert-pdf";
 
 export const Route = createFileRoute("/_authenticated/certificates")({ component: Certs });
 
@@ -13,7 +14,7 @@ function Certs() {
     queryFn: async () => {
       const { data } = await supabase
         .from("certificates")
-        .select("*, courses(nombre)")
+        .select("*, employees(nombre, dui), courses(nombre)")
         .order("fecha_emision", { ascending: false });
       return data ?? [];
     },
@@ -36,7 +37,9 @@ function Certs() {
               </div>
               <CardContent className="flex items-center justify-between p-4">
                 <span className="text-sm text-muted-foreground">Nota {c.nota}%</span>
-                <Button variant="ghost" size="sm" disabled><Download className="mr-1 h-4 w-4" /> PDF</Button>
+                <Button variant="ghost" size="sm" onClick={() => downloadCertificate(c)}>
+                  <Download className="mr-1 h-4 w-4" /> Descargar PDF
+                </Button>
               </CardContent>
             </Card>
           ))}
@@ -47,3 +50,4 @@ function Certs() {
     </div>
   );
 }
+
