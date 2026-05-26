@@ -38,7 +38,14 @@ function CourseList() {
                   </div>
                   <p className="text-sm text-muted-foreground">{c.descripcion}</p>
                 </div>
-                <span className="text-xs text-muted-foreground">{c.duracion_min ?? 30} min</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">{c.duracion_min ?? 30} min</span>
+                  <Button asChild size="sm" variant="outline">
+                    <Link to="/admin/courses/$courseId/edit" params={{ courseId: c.id }}>
+                      <Pencil className="mr-1 h-3 w-3" /> Editar
+                    </Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
