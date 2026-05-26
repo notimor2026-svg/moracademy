@@ -47,7 +47,8 @@ function AuthenticatedLayout() {
     { to: "/home", label: "Mis cursos", icon: LayoutDashboard, show: true },
     { to: "/certificates", label: "Certificados", icon: Award, show: true },
     { to: "/team", label: "Mi equipo", icon: Users2, show: isJefe },
-    { to: "/admin", label: "Administración", icon: ShieldCheck, show: isRrhh },
+    // Siempre visible: usuarios sin rol RRHH verán el flujo de auto-promoción inicial.
+    { to: "/admin", label: "Administración", icon: ShieldCheck, show: true },
   ].filter((n) => n.show);
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
