@@ -215,6 +215,62 @@ export const listRequisitions = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
+// ============== MOR TALENT PIPELINE INTEGRATION ==============
+// El Pipeline vive en otro proyecto Lovable Cloud. Lo consultamos con su
+// publishable key (pública por diseño; no es secreto). Para que esta llamada
+// devuelva datos, en el proyecto Pipeline debe existir una policy de SELECT
+// sobre public.requisitions que permita al rol `anon` leer las plazas con
+// status = 'plaza_cubierta' (ver instrucciones al usuario).
+const PIPELINE_URL = "https://bhuqyykpjnoirpqxlstt.supabase.co";
+const PIPELINE_ANON =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJodXF5eWtwam5vaXJwcXhsc3R0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTEzNjgsImV4cCI6MjA5MjM2NzM2OH0.A9Rii_GncLhLCSZaSUzUI-vVHGiqE-JFO5iUT7nMgg8";
+
+export type PipelineRequisition = {
+  id: string;
+  code: string;
+  position_title: string;
+  management_area: string | null;
+  department: string | null;
+  required_trainings: string[];
+};
+
+export const listPipelineRequisitions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<PipelineRequisition[]> => {
+    await requireRrhh(context.userId);
+    const url =
+      `${PIPELINE_URL}/rest/v1/requisitions` +
+      `?select=id,code,position_title,management_area,required_trainings,departments(name)` +
+      `&status=eq.plaza_cubierta&order=updated_at.desc&limit=100`;
+    const res = await fetch(url, {
+      headers: { apikey: PIPELINE_ANON, Authorization: `Bearer ${PIPELINE_ANON}` },
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(
+        `No se pudo leer el Talent Pipeline (${res.status}). ` +
+          `Revisa que la policy de lectura anónima esté creada. Detalle: ${body.slice(0, 200)}`,
+      );
+    }
+    const rows = (await res.json()) as Array<{
+      id: string;
+      code: string;
+      position_title: string;
+      management_area: string | null;
+      required_trainings: string[] | null;
+      departments: { name: string } | null;
+    }>;
+    return rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      position_title: r.position_title,
+      management_area: r.management_area,
+      department: r.departments?.name ?? null,
+      required_trainings: r.required_trainings ?? [],
+    }));
+  });
+
+
 export const listEmployees = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
