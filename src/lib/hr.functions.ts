@@ -220,6 +220,99 @@ export const unblockAssignment = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const listAllAssignments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireRrhh(context.userId);
+    const { data } = await supabaseAdmin
+      .from("course_assignments")
+      .select("*, employees(id, nombre, dui, area, cargo), courses(id, nombre, tipo)")
+      .order("fecha_asignacion", { ascending: false });
+    return data ?? [];
+  });
+
+export const listCoursesBasic = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireRrhh(context.userId);
+    const { data } = await supabaseAdmin
+      .from("courses")
+      .select("id, nombre, tipo, estado")
+      .eq("estado", "activa")
+      .order("nombre");
+    return data ?? [];
+  });
+
+export const reportData = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({ kind: z.enum(["empleados", "asignaciones", "certificados", "intentos", "bloqueos"]) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    if (data.kind === "empleados") {
+      const { data: rows } = await supabaseAdmin
+        .from("employees")
+        .select("dui, nombre, email, area, cargo, fecha_ingreso, tipo_proceso, estado, xp");
+      return rows ?? [];
+    }
+    if (data.kind === "asignaciones") {
+      const { data: rows } = await supabaseAdmin
+        .from("course_assignments")
+        .select("estado, origen, intentos_consumidos, mejor_nota, fecha_asignacion, fecha_finalizacion, employees(dui, nombre, area), courses(nombre, tipo)");
+      return (rows ?? []).map((r: any) => ({
+        dui: r.employees?.dui, empleado: r.employees?.nombre, area: r.employees?.area,
+        curso: r.courses?.nombre, tipo_curso: r.courses?.tipo,
+        estado: r.estado, origen: r.origen,
+        intentos: r.intentos_consumidos, mejor_nota: r.mejor_nota,
+        asignado: r.fecha_asignacion, finalizado: r.fecha_finalizacion,
+      }));
+    }
+    if (data.kind === "certificados") {
+      const { data: rows } = await supabaseAdmin
+        .from("certificates")
+        .select("codigo, nota, fecha_emision, employees(dui, nombre), courses(nombre)");
+      return (rows ?? []).map((r: any) => ({
+        codigo: r.codigo, dui: r.employees?.dui, empleado: r.employees?.nombre,
+        curso: r.courses?.nombre, nota: r.nota, emitido: r.fecha_emision,
+      }));
+    }
+    if (data.kind === "intentos") {
+      const { data: rows } = await supabaseAdmin
+        .from("quiz_attempts")
+        .select("intento_num, score, aprobado, started_at, finished_at, employees(dui, nombre), quizzes(course_id, courses(nombre))");
+      return (rows ?? []).map((r: any) => ({
+        dui: r.employees?.dui, empleado: r.employees?.nombre,
+        curso: r.quizzes?.courses?.nombre,
+        intento: r.intento_num, score: r.score, aprobado: r.aprobado,
+        iniciado: r.started_at, finalizado: r.finished_at,
+      }));
+    }
+    // bloqueos
+    const { data: rows } = await supabaseAdmin
+      .from("course_assignments")
+      .select("intentos_consumidos, mejor_nota, employees(dui, nombre), courses(nombre)")
+      .eq("estado", "bloqueado");
+    return (rows ?? []).map((r: any) => ({
+      dui: r.employees?.dui, empleado: r.employees?.nombre,
+      curso: r.courses?.nombre, intentos: r.intentos_consumidos, mejor_nota: r.mejor_nota,
+    }));
+  });
+
+export const getCertificate = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ certificate_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: cert } = await supabase
+      .from("certificates")
+      .select("*, employees(nombre, dui), courses(nombre, descripcion)")
+      .eq("id", data.certificate_id)
+      .maybeSingle();
+    if (!cert) throw new Error("Certificado no encontrado.");
+    return cert;
+  });
+
 // Ayuda dev: garantiza al menos un usuario RRHH (cuando no hay ninguno)
 export const ensureFirstRrhh = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
