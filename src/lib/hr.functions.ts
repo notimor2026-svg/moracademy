@@ -43,8 +43,11 @@ const CreateEmployeeSchema = z.object({
   jefe_id: z.string().uuid().optional().nullable(),
   tipo_proceso: z.enum(["induccion", "constante", "ambos"]).default("ambos"),
   requisicion_id: z.string().uuid().optional().nullable(),
+  pipeline_requisition_id: z.string().uuid().optional().nullable(),
+  pipeline_required_trainings: z.array(z.string().min(1).max(200)).optional(),
   es_jefe: z.boolean().optional(),
 });
+
 
 export const createEmployee = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
