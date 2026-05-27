@@ -570,6 +570,7 @@ export type Database = {
           nombre: string
           num_preguntas: number
           posicion: number
+          preguntas: Json
           umbral: number
         }
         Insert: {
@@ -583,6 +584,7 @@ export type Database = {
           nombre?: string
           num_preguntas?: number
           posicion?: number
+          preguntas?: Json
           umbral?: number
         }
         Update: {
@@ -596,6 +598,7 @@ export type Database = {
           nombre?: string
           num_preguntas?: number
           posicion?: number
+          preguntas?: Json
           umbral?: number
         }
         Relationships: [
