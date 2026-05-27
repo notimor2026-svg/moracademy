@@ -20,6 +20,19 @@ const requireRrhh = async (userId: string) => {
   }
 };
 
+const requireSuperAdmin = async (userId: string) => {
+  const { data: roles } = await supabaseAdmin
+    .from("user_roles").select("role").eq("user_id", userId);
+  const isSuper = (roles ?? []).some((r) => (r.role as string) === "super_admin");
+  if (!isSuper) {
+    const { data: emp } = await supabaseAdmin
+      .from("employees").select("dui").eq("auth_user_id", userId).maybeSingle();
+    if (emp?.dui !== ADMIN_DUI) {
+      throw new Error("Solo el Super Administrador puede ejecutar esta acción.");
+    }
+  }
+};
+
 export const getMe = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -32,11 +45,14 @@ export const getMe = createServerFn({ method: "GET" })
         .eq("auth_user_id", userId)
         .maybeSingle(),
     ]);
+    const roleList = (roles ?? []).map((r) => r.role as string);
+    const isSuper = roleList.includes("super_admin") || emp?.dui === ADMIN_DUI;
     return {
       userId,
-      roles: (roles ?? []).map((r) => r.role),
+      roles: roleList,
       employee: emp,
-      isAdmin: emp?.dui === ADMIN_DUI,
+      isAdmin: emp?.dui === ADMIN_DUI || isSuper,
+      isSuperAdmin: isSuper,
     };
   });
 
