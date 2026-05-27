@@ -135,16 +135,11 @@ function NewEmp() {
                   </div>
                 </div>
               ) : (
-                <Select value={form.pipeline_requisition_id} onValueChange={(v) => setForm({ ...form, pipeline_requisition_id: v })}>
-                  <SelectTrigger><SelectValue placeholder={(reqs.data ?? []).length ? "Selecciona la plaza cubierta" : "No hay requisiciones cubiertas disponibles"} /></SelectTrigger>
-                  <SelectContent>
-                    {(reqs.data ?? []).map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.code} · {r.position_title}{r.management_area || r.department ? ` (${r.management_area ?? r.department})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <RequisitionCombobox
+                  value={form.pipeline_requisition_id}
+                  onChange={(v) => setForm({ ...form, pipeline_requisition_id: v })}
+                  options={reqs.data ?? []}
+                />
               )}
               {selected && (
                 <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 p-3">
