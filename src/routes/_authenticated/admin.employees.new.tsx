@@ -26,8 +26,19 @@ function NewEmp() {
   const create = useServerFn(createEmployee);
   const reqsFn = useServerFn(listPipelineRequisitions);
   const empsFn = useServerFn(listEmployees);
-  const reqs = useQuery({ queryKey: ["pipeline-requisitions"], queryFn: () => reqsFn() });
-  const emps = useQuery({ queryKey: ["employees"], queryFn: () => empsFn() });
+  const reqs = useQuery({
+    queryKey: ["pipeline-requisitions"],
+    queryFn: () => reqsFn(),
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+    retry: 1,
+  });
+  const emps = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => empsFn(),
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+  });
 
   const [form, setForm] = useState({
     dui: "", nombre: "", email: "", area: "", cargo: "",
