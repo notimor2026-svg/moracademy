@@ -71,12 +71,22 @@ export const markLessonComplete = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const questionTypes = [
+  "opcion_multiple",
+  "verdadero_falso",
+  "relacionar_columnas",
+  "completar_espacios",
+  "multiple_respuesta",
+  "situacional_analisis",
+] as const;
+
 const QuestionSchema = z.object({
-  enunciado: z.string(),
-  tipo: z.enum(["opcion_multiple", "verdadero_falso", "multiple_respuesta"]),
-  opciones: z.array(z.string()).min(2).max(6),
-  respuesta_correcta: z.array(z.number()).min(1),
-  justificacion: z.string(),
+  enunciado: z.string().min(8),
+  tipo: z.enum(questionTypes),
+  dificultad: z.enum(["basica", "media", "avanzada"]).default("media"),
+  opciones: z.array(z.string().min(1)).min(2).max(8),
+  respuesta_correcta: z.array(z.number().int()).min(1),
+  justificacion: z.string().min(8),
 });
 
 type QuizQuestion = z.infer<typeof QuestionSchema>;
@@ -86,17 +96,19 @@ const QuizQuestionsSchema = z.object({
 });
 
 const normalizeQuestion = (question: QuizQuestion): QuizQuestion | null => {
+  const tipo = questionTypes.includes(question.tipo) ? question.tipo : "opcion_multiple";
   const opciones = question.tipo === "verdadero_falso"
     ? ["Verdadero", "Falso"]
-    : question.opciones.map((option) => option.trim()).filter(Boolean).slice(0, 6);
+    : Array.from(new Set(question.opciones.map((option) => option.trim()).filter(Boolean))).slice(0, 8);
   if (!question.enunciado.trim() || opciones.length < 2) return null;
   const respuesta_correcta = question.respuesta_correcta
     .filter((index) => Number.isInteger(index) && index >= 0 && index < opciones.length)
-    .slice(0, question.tipo === "multiple_respuesta" ? opciones.length : 1);
+    .slice(0, tipo === "multiple_respuesta" || tipo === "relacionar_columnas" ? opciones.length : 1);
   if (!respuesta_correcta.length) return null;
   return {
     enunciado: question.enunciado.trim(),
-    tipo: question.tipo,
+    tipo,
+    dificultad: question.dificultad ?? "media",
     opciones,
     respuesta_correcta,
     justificacion: question.justificacion.trim() || "Respuesta basada en el material del curso.",
@@ -105,7 +117,13 @@ const normalizeQuestion = (question: QuizQuestion): QuizQuestion | null => {
 
 const sanitizeQuestions = (questions: QuizQuestion[], count: number) => {
   const clean = questions.map(normalizeQuestion).filter((q): q is QuizQuestion => Boolean(q));
-  return clean.slice(0, count);
+  const seen = new Set<string>();
+  return clean.filter((question) => {
+    const key = question.enunciado.toLowerCase().replace(/\W+/g, " ").trim().slice(0, 90);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, count);
 };
 
 const buildFallbackQuestions = (material: string, count: number): QuizQuestion[] => {
@@ -124,18 +142,50 @@ const buildFallbackQuestions = (material: string, count: number): QuizQuestion[]
   return Array.from({ length: count }, (_, index) => {
     const sentence = source[index % source.length];
     const excerpt = sentence.length > 180 ? `${sentence.slice(0, 177)}…` : sentence;
-    if (index % 3 === 1) {
+    if (index % 5 === 1) {
       return {
         enunciado: `Verdadero o falso: ${excerpt}`,
         tipo: "verdadero_falso",
+        dificultad: "basica",
         opciones: ["Verdadero", "Falso"],
         respuesta_correcta: [0],
         justificacion: `La afirmación aparece en el material: “${excerpt}”.`,
       };
     }
+    if (index % 5 === 2) {
+      return {
+        enunciado: "Selecciona las afirmaciones que sí están respaldadas por el material del curso.",
+        tipo: "multiple_respuesta",
+        dificultad: "media",
+        opciones: [excerpt, "Una idea no mencionada en el recurso", "Una conclusión ajena al contenido", "Un dato externo al curso"],
+        respuesta_correcta: [0],
+        justificacion: `La afirmación correcta proviene del material: “${excerpt}”.`,
+      };
+    }
+    if (index % 5 === 3) {
+      return {
+        enunciado: "Completa la idea central con la opción que mejor representa el contenido estudiado.",
+        tipo: "completar_espacios",
+        dificultad: "media",
+        opciones: [excerpt, "un procedimiento no cubierto", "una práctica contraria", "un concepto no relacionado"],
+        respuesta_correcta: [0],
+        justificacion: `La opción correcta completa la idea con información del curso: “${excerpt}”.`,
+      };
+    }
+    if (index % 5 === 4) {
+      return {
+        enunciado: "Ante una situación laboral relacionada con el tema, ¿qué interpretación se alinea mejor con el curso?",
+        tipo: "situacional_analisis",
+        dificultad: "avanzada",
+        opciones: [excerpt, "Ignorar el contenido del curso", "Aplicar un criterio externo", "Elegir una acción sin analizar el material"],
+        respuesta_correcta: [0],
+        justificacion: `La interpretación correcta se basa en el fragmento: “${excerpt}”.`,
+      };
+    }
     return {
       enunciado: `¿Cuál opción coincide mejor con el material revisado?`,
       tipo: "opcion_multiple",
+      dificultad: "basica",
       opciones: [excerpt, ...genericOptions.slice(1)],
       respuesta_correcta: [0],
       justificacion: `La respuesta correcta corresponde al fragmento del material: “${excerpt}”.`,
