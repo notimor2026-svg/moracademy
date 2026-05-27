@@ -14,9 +14,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Download, FileSpreadsheet, FileText, Play, Save, Trash2, Layers } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
 export const Route = createFileRoute("/_authenticated/admin/reports")({ component: Reports });
 
@@ -182,16 +179,21 @@ function Reports() {
     URL.revokeObjectURL(a.href);
   };
 
-  const exportXLSX = () => {
+  const exportXLSX = async () => {
     if (!exportRows.length) return toast.info("Ejecuta el reporte primero");
+    const XLSX = await import("xlsx");
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, entidad.slice(0, 30));
     XLSX.writeFile(wb, `mor-${entidad}-${stamp()}.xlsx`);
   };
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
     if (!exportRows.length) return toast.info("Ejecuta el reporte primero");
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
     const doc = new jsPDF({ orientation: "landscape" });
     doc.setFontSize(14);
     doc.text(`MOR Academy — Reporte: ${entityDef.label}`, 14, 14);
