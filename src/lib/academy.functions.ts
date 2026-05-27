@@ -238,12 +238,17 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
 
     const { data: prev } = await supabase
       .from("quiz_attempts")
-      .select("intento_num")
+      .select("intento_num, preguntas")
       .eq("quiz_id", data.quiz_id)
       .eq("employee_id", emp!.id)
       .order("intento_num", { ascending: false })
       .limit(1);
     const intento_num = (prev?.[0]?.intento_num ?? 0) + 1;
+    const previousQuestions = ((prev?.[0]?.preguntas as Array<{ enunciado?: string }> | null) ?? [])
+      .map((question) => question.enunciado)
+      .filter(Boolean)
+      .slice(0, 10)
+      .join("\n- ");
 
     if (intento_num > quiz.intentos_permitidos) {
       throw new Error("Has agotado los intentos permitidos.");
@@ -263,7 +268,7 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
         temperature: 0.7,
         system:
           "Eres un diseñador instruccional experto en evaluaciones corporativas. Genera preguntas en español usando exclusivamente el contenido visible o disponible para el alumno en el curso. No inventes datos externos. Si un recurso es video, documento, imagen o enlace y solo hay título/URL/ruta disponible, genera preguntas únicamente sobre los datos textuales proporcionados de ese recurso. Devuelve datos que cumplan exactamente el esquema.",
-        prompt: `Contenido mostrado al alumno en el curso:\n\n${materialForAi}\n\nSemilla única para evitar repetición: ${emp!.id}-${data.quiz_id}-${intento_num}-${Date.now()}\nCantidad exacta requerida: ${quiz.num_preguntas}\n\nRequisitos:\n- Todas las preguntas deben evaluar comprensión real del contenido anterior.\n- Varía tipos entre: opcion_multiple, verdadero_falso, relacionar_columnas, completar_espacios, multiple_respuesta y situacional_analisis.\n- Varía dificultad entre basica, media y avanzada.\n- Evita preguntas repetidas o demasiado similares.\n- respuesta_correcta debe contener índices 0-based de opciones correctas.\n- Para verdadero_falso usa exactamente ["Verdadero","Falso"].\n- Para relacionar_columnas, cada opción debe tener formato "Concepto → Relación" y respuesta_correcta debe incluir los índices de los pares correctos.\n- Para completar_espacios, el enunciado debe contener ____ y las opciones son posibles respuestas.\n- Para situacional_analisis, plantea una situación breve aplicable al contenido del curso.\n- La justificación debe citar o resumir la parte del contenido usada.`,
+        prompt: `Contenido mostrado al alumno en el curso:\n\n${materialForAi}\n\nPreguntas usadas recientemente que debes evitar:\n- ${previousQuestions || "Ninguna"}\n\nSemilla única para evitar repetición: ${emp!.id}-${data.quiz_id}-${intento_num}-${Date.now()}\nCantidad exacta requerida: ${quiz.num_preguntas}\n\nRequisitos:\n- Todas las preguntas deben evaluar comprensión real del contenido anterior.\n- Varía tipos entre: opcion_multiple, verdadero_falso, relacionar_columnas, completar_espacios, multiple_respuesta y situacional_analisis.\n- Varía dificultad entre basica, media y avanzada.\n- Evita preguntas repetidas o demasiado similares.\n- respuesta_correcta debe contener índices 0-based de opciones correctas.\n- Para verdadero_falso usa exactamente ["Verdadero","Falso"].\n- Para relacionar_columnas, cada opción debe tener formato "Concepto → Relación" y respuesta_correcta debe incluir los índices de los pares correctos.\n- Para completar_espacios, el enunciado debe contener ____ y las opciones son posibles respuestas.\n- Para situacional_analisis, plantea una situación breve aplicable al contenido del curso.\n- La justificación debe citar o resumir la parte del contenido usada.`,
       });
       preguntas = sanitizeQuestions(object.preguntas, quiz.num_preguntas);
     } catch (error) {
