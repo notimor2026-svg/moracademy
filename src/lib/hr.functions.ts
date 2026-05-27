@@ -232,20 +232,20 @@ export type PipelineRequisition = {
   management_area: string | null;
   department: string | null;
   required_trainings: string[];
+  status: string | null;
+  updated_at: string | null;
 };
 
 export const listPipelineRequisitions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<PipelineRequisition[]> => {
     await requireRrhh(context.userId);
-    // Traemos todas las requisiciones del Pipeline (sin filtrar por status en
-    // el servidor para no depender del enum exacto del otro proyecto) y
-    // descartamos en memoria las que están cerradas/archivadas/canceladas.
+    // Traemos TODAS las requisiciones del Pipeline. RRHH filtrará/buscará
+    // desde la UI (por código, cargo, área o estado).
     const url =
       `${PIPELINE_URL}/rest/v1/requisitions` +
-      `?select=id,code,position_title,management_area,required_trainings,status,departments(name)` +
-      `&order=updated_at.desc&limit=200`;
-    // Timeout 8s para que el dropdown no se cuelgue si el Pipeline no responde.
+      `?select=id,code,position_title,management_area,required_trainings,status,updated_at,departments(name)` +
+      `&order=updated_at.desc&limit=500`;
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 8000);
     let res: Response;
@@ -276,19 +276,19 @@ export const listPipelineRequisitions = createServerFn({ method: "GET" })
       management_area: string | null;
       required_trainings: string[] | null;
       status: string | null;
+      updated_at: string | null;
       departments: { name: string } | null;
     }>;
-    const EXCLUDED = new Set(["cerrada", "closed", "archivada", "archived", "cancelada", "cancelled", "canceled"]);
-    return rows
-      .filter((r) => !r.status || !EXCLUDED.has(r.status.toLowerCase()))
-      .map((r) => ({
-        id: r.id,
-        code: r.code,
-        position_title: r.position_title,
-        management_area: r.management_area,
-        department: r.departments?.name ?? null,
-        required_trainings: r.required_trainings ?? [],
-      }));
+    return rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      position_title: r.position_title,
+      management_area: r.management_area,
+      department: r.departments?.name ?? null,
+      required_trainings: r.required_trainings ?? [],
+      status: r.status,
+      updated_at: r.updated_at,
+    }));
   });
 
 
