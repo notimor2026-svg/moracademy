@@ -20,6 +20,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as ApiAuthDuiLoginRouteImport } from './routes/api/auth/dui-login'
 import { Route as AuthenticatedQuizQuizIdRouteImport } from './routes/_authenticated/quiz.$quizId'
 import { Route as AuthenticatedCoursesCourseIdRouteImport } from './routes/_authenticated/courses.$courseId'
+import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated/admin.reports'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin.audit'
 import { Route as AuthenticatedAdminAssignmentsRouteImport } from './routes/_authenticated/admin.assignments'
@@ -85,6 +86,11 @@ const AuthenticatedCoursesCourseIdRoute =
     path: '/courses/$courseId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminReportsRoute =
   AuthenticatedAdminReportsRouteImport.update({
     id: '/reports',
@@ -143,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/admin/assignments': typeof AuthenticatedAdminAssignmentsRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/courses/$courseId': typeof AuthenticatedCoursesCourseIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/api/auth/dui-login': typeof ApiAuthDuiLoginRoute
@@ -162,6 +169,7 @@ export interface FileRoutesByTo {
   '/admin/assignments': typeof AuthenticatedAdminAssignmentsRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/courses/$courseId': typeof AuthenticatedCoursesCourseIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/api/auth/dui-login': typeof ApiAuthDuiLoginRoute
@@ -184,6 +192,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/assignments': typeof AuthenticatedAdminAssignmentsRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
+  '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/courses/$courseId': typeof AuthenticatedCoursesCourseIdRoute
   '/_authenticated/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/api/auth/dui-login': typeof ApiAuthDuiLoginRoute
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
     | '/admin/assignments'
     | '/admin/audit'
     | '/admin/reports'
+    | '/admin/users'
     | '/courses/$courseId'
     | '/quiz/$quizId'
     | '/api/auth/dui-login'
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/admin/assignments'
     | '/admin/audit'
     | '/admin/reports'
+    | '/admin/users'
     | '/courses/$courseId'
     | '/quiz/$quizId'
     | '/api/auth/dui-login'
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/assignments'
     | '/_authenticated/admin/audit'
     | '/_authenticated/admin/reports'
+    | '/_authenticated/admin/users'
     | '/_authenticated/courses/$courseId'
     | '/_authenticated/quiz/$quizId'
     | '/api/auth/dui-login'
@@ -343,6 +355,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCoursesCourseIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/users': {
+      id: '/_authenticated/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/reports': {
       id: '/_authenticated/admin/reports'
       path: '/reports'
@@ -406,6 +425,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAssignmentsRoute: typeof AuthenticatedAdminAssignmentsRoute
   AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
   AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
+  AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminCoursesNewRoute: typeof AuthenticatedAdminCoursesNewRoute
   AuthenticatedAdminEmployeesNewRoute: typeof AuthenticatedAdminEmployeesNewRoute
@@ -418,6 +438,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAssignmentsRoute: AuthenticatedAdminAssignmentsRoute,
   AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
   AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
+  AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminCoursesNewRoute: AuthenticatedAdminCoursesNewRoute,
   AuthenticatedAdminEmployeesNewRoute: AuthenticatedAdminEmployeesNewRoute,

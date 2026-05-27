@@ -20,6 +20,19 @@ const requireRrhh = async (userId: string) => {
   }
 };
 
+const requireSuperAdmin = async (userId: string) => {
+  const { data: roles } = await supabaseAdmin
+    .from("user_roles").select("role").eq("user_id", userId);
+  const isSuper = (roles ?? []).some((r) => (r.role as string) === "super_admin");
+  if (!isSuper) {
+    const { data: emp } = await supabaseAdmin
+      .from("employees").select("dui").eq("auth_user_id", userId).maybeSingle();
+    if (emp?.dui !== ADMIN_DUI) {
+      throw new Error("Solo el Super Administrador puede ejecutar esta acción.");
+    }
+  }
+};
+
 export const getMe = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -32,11 +45,14 @@ export const getMe = createServerFn({ method: "GET" })
         .eq("auth_user_id", userId)
         .maybeSingle(),
     ]);
+    const roleList = (roles ?? []).map((r) => r.role as string);
+    const isSuper = roleList.includes("super_admin") || emp?.dui === ADMIN_DUI;
     return {
       userId,
-      roles: (roles ?? []).map((r) => r.role),
+      roles: roleList,
       employee: emp,
-      isAdmin: emp?.dui === ADMIN_DUI,
+      isAdmin: emp?.dui === ADMIN_DUI || isSuper,
+      isSuperAdmin: isSuper,
     };
   });
 
@@ -911,4 +927,173 @@ export const deleteSavedReport = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin.from("saved_reports").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+// ============================================================
+// Gestión de Usuarios (Super Administrador)
+// ============================================================
+
+const ASSIGNABLE_ROLES = ["colaborador", "rrhh", "jefe_directo", "super_admin"] as const;
+type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
+
+export const listSystemUsers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireSuperAdmin(context.userId);
+    const { data: emps, error } = await supabaseAdmin
+      .from("employees")
+      .select("id, auth_user_id, dui, nombre, email, area, cargo, estado, created_at")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    const userIds = (emps ?? []).map((e) => e.auth_user_id).filter(Boolean) as string[];
+    let rolesByUser: Record<string, string[]> = {};
+    if (userIds.length) {
+      const { data: rs } = await supabaseAdmin
+        .from("user_roles").select("user_id, role").in("user_id", userIds);
+      rolesByUser = (rs ?? []).reduce((acc, r) => {
+        const k = r.user_id as string;
+        (acc[k] ||= []).push(r.role as string);
+        return acc;
+      }, {} as Record<string, string[]>);
+    }
+    return (emps ?? []).map((e) => ({
+      ...e,
+      roles: e.auth_user_id ? rolesByUser[e.auth_user_id] ?? [] : [],
+    }));
+  });
+
+export const updateSystemUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      employee_id: z.string().uuid(),
+      nombre: z.string().min(2).max(120).optional(),
+      email: z.string().email().or(z.literal("")).optional(),
+      area: z.string().max(80).optional().nullable(),
+      cargo: z.string().max(80).optional().nullable(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireSuperAdmin(context.userId);
+    const patch: {
+      nombre?: string; email?: string | null; area?: string | null; cargo?: string | null;
+    } = {};
+    if (data.nombre !== undefined) patch.nombre = data.nombre;
+    if (data.email !== undefined) patch.email = data.email || null;
+    if (data.area !== undefined) patch.area = data.area || null;
+    if (data.cargo !== undefined) patch.cargo = data.cargo || null;
+    const { error } = await supabaseAdmin
+      .from("employees").update(patch).eq("id", data.employee_id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const setUserActive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({ employee_id: z.string().uuid(), activo: z.boolean() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireSuperAdmin(context.userId);
+    const { data: emp, error: e1 } = await supabaseAdmin
+      .from("employees").select("auth_user_id, dui").eq("id", data.employee_id).maybeSingle();
+    if (e1 || !emp) throw new Error("Empleado no encontrado.");
+    if (emp.dui === ADMIN_DUI && !data.activo) {
+      throw new Error("No puedes desactivar al Super Administrador maestro.");
+    }
+    const { error } = await supabaseAdmin
+      .from("employees")
+      .update({ estado: data.activo ? "activo" : "inactivo" })
+      .eq("id", data.employee_id);
+    if (error) throw new Error(error.message);
+    // Banear/desbanear en auth para impedir login si está inactivo.
+    if (emp.auth_user_id) {
+      await supabaseAdmin.auth.admin.updateUserById(emp.auth_user_id, {
+        ban_duration: data.activo ? "none" : "876000h",
+      });
+    }
+    return { ok: true };
+  });
+
+export const setUserRoles = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      employee_id: z.string().uuid(),
+      roles: z.array(z.enum(ASSIGNABLE_ROLES)).max(4),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireSuperAdmin(context.userId);
+    const { data: emp, error: e1 } = await supabaseAdmin
+      .from("employees").select("auth_user_id, dui").eq("id", data.employee_id).maybeSingle();
+    if (e1 || !emp?.auth_user_id) throw new Error("Empleado sin cuenta de acceso.");
+    // Proteger al super admin maestro: siempre conserva super_admin.
+    const finalRoles = new Set<AssignableRole>(data.roles);
+    if (emp.dui === ADMIN_DUI) finalRoles.add("super_admin");
+    if (finalRoles.size === 0) finalRoles.add("colaborador");
+
+    const { error: delErr } = await supabaseAdmin
+      .from("user_roles").delete().eq("user_id", emp.auth_user_id);
+    if (delErr) throw new Error(delErr.message);
+    const rows = Array.from(finalRoles).map((r) => ({
+      user_id: emp.auth_user_id!,
+      role: r as unknown as never,
+    }));
+    const { error: insErr } = await supabaseAdmin.from("user_roles").insert(rows);
+    if (insErr) throw new Error(insErr.message);
+    return { ok: true, roles: Array.from(finalRoles) };
+  });
+
+export const createSystemUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      dui: z.string().refine(isValidDui, "DUI inválido"),
+      nombre: z.string().min(2).max(120),
+      email: z.string().email().or(z.literal("")).optional(),
+      area: z.string().max(80).optional(),
+      cargo: z.string().max(80).optional(),
+      roles: z.array(z.enum(ASSIGNABLE_ROLES)).min(1).max(4),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireSuperAdmin(context.userId);
+
+    // Crear auth user con password derivada del DUI.
+    const email = duiEmail(data.dui);
+    const password = duiPassword(data.dui);
+    const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
+      email, password, email_confirm: true,
+      user_metadata: { dui: data.dui, nombre: data.nombre },
+    });
+    if (cErr || !created.user) throw new Error(cErr?.message ?? "No se pudo crear el usuario.");
+    const authUserId = created.user.id;
+
+    const { data: emp, error: empErr } = await supabaseAdmin
+      .from("employees")
+      .insert({
+        auth_user_id: authUserId,
+        dui: data.dui,
+        nombre: data.nombre,
+        email: data.email || null,
+        area: data.area || null,
+        cargo: data.cargo || null,
+        estado: "activo",
+        tipo_proceso: "ambos",
+      })
+      .select("id").single();
+    if (empErr) {
+      await supabaseAdmin.auth.admin.deleteUser(authUserId);
+      throw new Error(empErr.message);
+    }
+
+    const rows = data.roles.map((r) => ({
+      user_id: authUserId,
+      role: r as unknown as never,
+    }));
+    const { error: rErr } = await supabaseAdmin.from("user_roles").insert(rows);
+    if (rErr) throw new Error(rErr.message);
+
+    return { ok: true, employee_id: emp.id };
   });
