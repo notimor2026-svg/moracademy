@@ -14,9 +14,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Download, FileSpreadsheet, FileText, Play, Save, Trash2, Layers } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
 export const Route = createFileRoute("/_authenticated/admin/reports")({ component: Reports });
 
