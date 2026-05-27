@@ -15,7 +15,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, AlertCircle, GraduationCap } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Loader2, Save, AlertCircle, GraduationCap, Check, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { isValidDui, normalizeDui } from "@/lib/dui";
 
