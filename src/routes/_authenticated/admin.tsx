@@ -15,12 +15,13 @@ function AdminLayout() {
 
   const tabs = [
     { to: "/admin", label: "Resumen" },
+    { to: "/admin/users", label: "Usuarios", superOnly: true },
     { to: "/admin/employees", label: "Empleados" },
     { to: "/admin/courses", label: "Cursos" },
     { to: "/admin/assignments", label: "Asignaciones" },
     { to: "/admin/reports", label: "Reportes" },
     { to: "/admin/audit", label: "Auditoría" },
-  ];
+  ].filter((t) => !t.superOnly || meQ.data?.isSuperAdmin);
 
   if (meQ.isLoading) {
     return (
