@@ -125,12 +125,28 @@ function NewCourse() {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => nav({ to: "/admin/courses" })}>Cancelar</Button>
-        <Button onClick={() => m.mutate()} disabled={m.isPending || !course.nombre || !lessons.every((l) => l.titulo)}>
-          {m.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Publicando…</> : "Publicar curso"}
-        </Button>
-      </div>
+      {(() => {
+        const missing: string[] = [];
+        if (!course.nombre.trim()) missing.push("nombre del curso");
+        const emptyLessons = lessons.filter((l) => !l.titulo.trim()).length;
+        if (emptyLessons > 0) missing.push(`título en ${emptyLessons} lección(es)`);
+        const disabled = m.isPending || missing.length > 0;
+        return (
+          <div className="space-y-2">
+            {missing.length > 0 && (
+              <p className="text-right text-xs text-muted-foreground">
+                Falta: {missing.join(" · ")}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => nav({ to: "/admin/courses" })}>Cancelar</Button>
+              <Button onClick={() => m.mutate()} disabled={disabled} title={missing.length ? `Completa: ${missing.join(", ")}` : ""}>
+                {m.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Publicando…</> : "Publicar curso"}
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
