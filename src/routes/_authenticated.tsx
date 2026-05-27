@@ -40,16 +40,18 @@ function AuthenticatedLayout() {
   const meQ = useQuery({ queryKey: ["me", session?.user.id], queryFn: () => me(), enabled: !!session });
 
   const roles: string[] = meQ.data?.roles ?? [];
-  const isRrhh = roles.includes("rrhh");
   const isJefe = roles.includes("jefe_directo");
+  const isAdmin = meQ.data?.isAdmin === true;
+  const firstName = meQ.data?.employee?.nombre?.trim().split(/\s+/)[0];
 
   const nav = [
     { to: "/home", label: "Mis cursos", icon: LayoutDashboard, show: true },
     { to: "/certificates", label: "Certificados", icon: Award, show: true },
     { to: "/team", label: "Mi equipo", icon: Users2, show: isJefe },
-    // Siempre visible: usuarios sin rol RRHH verán el flujo de auto-promoción inicial.
-    { to: "/admin", label: "Administración", icon: ShieldCheck, show: true },
+    // Administración: solo visible para el DUI autorizado.
+    { to: "/admin", label: "Administración", icon: ShieldCheck, show: isAdmin },
   ].filter((n) => n.show);
+
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
