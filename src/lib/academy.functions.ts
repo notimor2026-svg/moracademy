@@ -258,6 +258,37 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
     return { score, aprobado, preguntas };
   });
 
+const ManualQuestionInput = z.object({
+  enunciado: z.string().min(1).max(1000),
+  tipo: z.enum(["opcion_multiple", "multiple_respuesta"]),
+  opciones: z.array(z.string().min(1).max(500)).min(2).max(8),
+  respuesta_correcta: z.array(z.number().int().nonnegative()).min(1),
+});
+
+const validateManualQuestions = (preguntas: z.infer<typeof ManualQuestionInput>[]) => {
+  preguntas.forEach((q, i) => {
+    const valid = q.respuesta_correcta.every((idx) => idx < q.opciones.length);
+    if (!valid) throw new Error(`Pregunta ${i + 1}: índice de respuesta correcta fuera de rango.`);
+    if (q.tipo === "opcion_multiple" && q.respuesta_correcta.length !== 1) {
+      throw new Error(`Pregunta ${i + 1}: opción múltiple debe tener exactamente 1 respuesta correcta.`);
+    }
+    if (q.tipo === "multiple_respuesta" && q.respuesta_correcta.length < 1) {
+      throw new Error(`Pregunta ${i + 1}: selección múltiple debe tener al menos 1 respuesta correcta.`);
+    }
+  });
+};
+
+const QuizConfigInput = z.object({
+  enabled: z.boolean(),
+  alcance: z.enum(["final", "por_leccion"]).default("final"),
+  umbral: z.number().min(50).max(100).default(80),
+  intentos_permitidos: z.number().min(1).max(10).default(3),
+  // Para alcance "final": preguntas únicas
+  preguntas: z.array(ManualQuestionInput).default([]),
+  // Para alcance "por_leccion": preguntas indexadas por la posición de la lección (0-based)
+  preguntas_por_leccion: z.array(z.array(ManualQuestionInput)).default([]),
+});
+
 export const createCourse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
@@ -279,13 +310,7 @@ export const createCourse = createServerFn({ method: "POST" })
             }),
           )
           .min(1),
-        quiz_final: z
-          .object({
-            num_preguntas: z.number().min(3).max(15).default(5),
-            umbral: z.number().min(50).max(100).default(80),
-            intentos_permitidos: z.number().min(1).max(10).default(3),
-          })
-          .optional(),
+        quiz: QuizConfigInput.optional(),
       })
       .parse(d),
   )
@@ -314,18 +339,121 @@ export const createCourse = createServerFn({ method: "POST" })
       orden: idx + 1,
       text_excerpt: l.contenido?.slice(0, 4000) ?? null,
     }));
-    await supabaseAdmin.from("course_lessons").insert(lessonsToInsert);
-    if (data.quiz_final) {
-      await supabaseAdmin.from("quizzes").insert({
-        course_id: course.id,
-        nombre: "Evaluación final",
-        posicion: 9999,
-        es_final: true,
-        ...data.quiz_final,
-      });
+    const { data: insertedLessons } = await supabaseAdmin
+      .from("course_lessons")
+      .insert(lessonsToInsert)
+      .select("id, orden");
+
+    if (data.quiz?.enabled) {
+      const q = data.quiz;
+      if (q.alcance === "final") {
+        validateManualQuestions(q.preguntas);
+        if (!q.preguntas.length) throw new Error("La evaluación final debe tener al menos una pregunta.");
+        await supabaseAdmin.from("quizzes").insert({
+          course_id: course.id,
+          nombre: "Evaluación final",
+          posicion: 9999,
+          es_final: true,
+          umbral: q.umbral,
+          intentos_permitidos: q.intentos_permitidos,
+          num_preguntas: q.preguntas.length,
+          preguntas: q.preguntas,
+        });
+      } else {
+        const sortedLessons = (insertedLessons ?? []).sort((a, b) => a.orden - b.orden);
+        const rows = sortedLessons
+          .map((lesson, idx) => {
+            const preguntas = q.preguntas_por_leccion[idx] ?? [];
+            if (!preguntas.length) return null;
+            validateManualQuestions(preguntas);
+            return {
+              course_id: course.id,
+              lesson_id: lesson.id,
+              nombre: `Evaluación lección ${idx + 1}`,
+              posicion: lesson.orden,
+              es_final: false,
+              umbral: q.umbral,
+              intentos_permitidos: q.intentos_permitidos,
+              num_preguntas: preguntas.length,
+              preguntas,
+            };
+          })
+          .filter(Boolean) as any[];
+        if (!rows.length) throw new Error("Debes agregar preguntas a al menos una lección.");
+        await supabaseAdmin.from("quizzes").insert(rows);
+      }
     }
     return { course };
   });
+
+// =================== CRUD de quizzes (manual) para edición ===================
+
+async function requireRrhhRole(userId: string) {
+  const { data } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
+  const roles = (data ?? []).map((r) => r.role);
+  if (!roles.includes("rrhh" as any) && !roles.includes("super_admin" as any)) {
+    throw new Error("No tienes permisos.");
+  }
+}
+
+export const upsertQuiz = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        id: z.string().uuid().optional(),
+        course_id: z.string().uuid(),
+        lesson_id: z.string().uuid().nullable().optional(),
+        nombre: z.string().min(1).max(160),
+        es_final: z.boolean().default(false),
+        posicion: z.number().int().min(0).max(99999).default(9999),
+        umbral: z.number().min(50).max(100).default(80),
+        intentos_permitidos: z.number().min(1).max(10).default(3),
+        preguntas: z.array(ManualQuestionInput).min(1),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRrhhRole(context.userId);
+    validateManualQuestions(data.preguntas);
+    const payload = {
+      course_id: data.course_id,
+      lesson_id: data.lesson_id ?? null,
+      nombre: data.nombre,
+      es_final: data.es_final,
+      posicion: data.posicion,
+      umbral: data.umbral,
+      intentos_permitidos: data.intentos_permitidos,
+      num_preguntas: data.preguntas.length,
+      preguntas: data.preguntas,
+    };
+    if (data.id) {
+      const { error } = await supabaseAdmin.from("quizzes").update(payload).eq("id", data.id);
+      if (error) throw new Error(error.message);
+      return { id: data.id };
+    }
+    const { data: ins, error } = await supabaseAdmin
+      .from("quizzes")
+      .insert(payload)
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: ins.id };
+  });
+
+export const deleteQuiz = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireRrhhRole(context.userId);
+    const { error } = await supabaseAdmin.from("quizzes").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 
 export const teamOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
