@@ -4,13 +4,19 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
 import { isValidDui, duiEmail, duiPassword } from "@/lib/dui";
 
+// Único DUI autorizado para acceder al módulo de administración.
+// Cualquier otro usuario, aún si tuviera rol "rrhh" en la BD, no debe ver
+// ni operar el Centro de Control.
+export const ADMIN_DUI = "05182956-2";
+
 const requireRrhh = async (userId: string) => {
-  const { data } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId);
-  if (!data?.some((r) => r.role === "rrhh")) {
-    throw new Error("Solo Recursos Humanos puede ejecutar esta acción.");
+  const { data: emp } = await supabaseAdmin
+    .from("employees")
+    .select("dui")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+  if (emp?.dui !== ADMIN_DUI) {
+    throw new Error("Solo el administrador autorizado puede ejecutar esta acción.");
   }
 };
 
@@ -30,8 +36,10 @@ export const getMe = createServerFn({ method: "GET" })
       userId,
       roles: (roles ?? []).map((r) => r.role),
       employee: emp,
+      isAdmin: emp?.dui === ADMIN_DUI,
     };
   });
+
 
 const CreateEmployeeSchema = z.object({
   dui: z.string().refine(isValidDui, "DUI inválido"),
