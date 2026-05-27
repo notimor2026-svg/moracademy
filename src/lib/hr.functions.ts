@@ -245,9 +245,23 @@ export const listPipelineRequisitions = createServerFn({ method: "GET" })
       `${PIPELINE_URL}/rest/v1/requisitions` +
       `?select=id,code,position_title,management_area,required_trainings,status,departments(name)` +
       `&order=updated_at.desc&limit=200`;
-    const res = await fetch(url, {
-      headers: { apikey: PIPELINE_ANON, Authorization: `Bearer ${PIPELINE_ANON}` },
-    });
+    // Timeout 8s para que el dropdown no se cuelgue si el Pipeline no responde.
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 8000);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { apikey: PIPELINE_ANON, Authorization: `Bearer ${PIPELINE_ANON}` },
+        signal: ctl.signal,
+      });
+    } catch (e: any) {
+      clearTimeout(timer);
+      if (e?.name === "AbortError") {
+        throw new Error("El Talent Pipeline tardó demasiado en responder (>8s). Reintenta.");
+      }
+      throw new Error(`No se pudo contactar al Talent Pipeline: ${e?.message ?? "error de red"}`);
+    }
+    clearTimeout(timer);
     if (!res.ok) {
       const body = await res.text();
       throw new Error(
