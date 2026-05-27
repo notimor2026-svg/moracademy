@@ -15,7 +15,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, AlertCircle, GraduationCap } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Loader2, Save, AlertCircle, GraduationCap, Check, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { isValidDui, normalizeDui } from "@/lib/dui";
 
@@ -133,16 +135,11 @@ function NewEmp() {
                   </div>
                 </div>
               ) : (
-                <Select value={form.pipeline_requisition_id} onValueChange={(v) => setForm({ ...form, pipeline_requisition_id: v })}>
-                  <SelectTrigger><SelectValue placeholder={(reqs.data ?? []).length ? "Selecciona la plaza cubierta" : "No hay requisiciones cubiertas disponibles"} /></SelectTrigger>
-                  <SelectContent>
-                    {(reqs.data ?? []).map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.code} · {r.position_title}{r.management_area || r.department ? ` (${r.management_area ?? r.department})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <RequisitionCombobox
+                  value={form.pipeline_requisition_id}
+                  onChange={(v) => setForm({ ...form, pipeline_requisition_id: v })}
+                  options={reqs.data ?? []}
+                />
               )}
               {selected && (
                 <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 p-3">
@@ -179,4 +176,84 @@ function NewEmp() {
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return <div className={`space-y-1.5 ${className ?? ""}`}><Label>{label}</Label>{children}</div>;
+}
+
+function RequisitionCombobox({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  options: PipelineRequisition[];
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.id === value);
+  const label = selected
+    ? `${selected.code} · ${selected.position_title}`
+    : options.length
+      ? "Buscar requisición por código, cargo o área…"
+      : "No hay requisiciones disponibles";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+          disabled={!options.length}
+        >
+          <span className="truncate text-left">{label}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command
+          filter={(itemValue, search) => {
+            // itemValue contiene code + título + área + estado en lowercase
+            return itemValue.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+          }}
+        >
+          <CommandInput placeholder="Buscar por código, cargo, área o estado…" />
+          <CommandList>
+            <CommandEmpty>Sin resultados.</CommandEmpty>
+            <CommandGroup>
+              {options.map((r) => {
+                const area = r.management_area ?? r.department ?? "";
+                const searchValue = `${r.code} ${r.position_title} ${area} ${r.status ?? ""}`;
+                return (
+                  <CommandItem
+                    key={r.id}
+                    value={searchValue}
+                    onSelect={() => {
+                      onChange(r.id);
+                      setOpen(false);
+                    }}
+                    className="flex items-start gap-2"
+                  >
+                    <Check className={`mt-1 h-4 w-4 shrink-0 ${value === r.id ? "opacity-100" : "opacity-0"}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{r.code}</span>
+                        <span className="truncate">{r.position_title}</span>
+                        {r.status && (
+                          <Badge variant="outline" className="text-[10px] uppercase">
+                            {r.status.replace(/_/g, " ")}
+                          </Badge>
+                        )}
+                      </div>
+                      {area && <div className="text-xs text-muted-foreground">{area}</div>}
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
