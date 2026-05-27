@@ -40,7 +40,7 @@ function Home() {
           Bienvenido a MOR ACADEMY
         </p>
         <h1 className="font-display text-3xl font-semibold text-foreground sm:text-4xl">
-          Hola, {data?.employee?.nombre?.split(" ")[0] ?? "colaborador"} 👋
+          Hola, {data?.employee?.nombre?.trim().split(/\s+/)[0] ?? "bienvenido"} 👋
         </h1>
         <p className="max-w-2xl text-muted-foreground">
           Aquí está tu ruta de aprendizaje. Completa cada capacitación a tu ritmo: tus avances
