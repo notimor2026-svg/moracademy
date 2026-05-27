@@ -97,8 +97,9 @@ function AuthenticatedLayout() {
             </Avatar>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">
-                {meQ.data?.employee?.nombre ?? "Colaborador"}
+                {firstName ?? "Hola"}
               </div>
+
               <div className="flex gap-1">
                 {roles.map((r) => (
                   <Badge key={r} variant="secondary" className="bg-sidebar-accent text-[10px] uppercase tracking-wide text-sidebar-foreground">
