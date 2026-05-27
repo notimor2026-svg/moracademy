@@ -263,16 +263,17 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
     try {
       const { object } = await generateObject({
         model,
-        schema: QuizQuestionsSchema,
+        output: "array",
+        schema: QuestionSchema,
         maxOutputTokens: 8192,
         temperature: 0.7,
         system:
           "Eres un diseñador instruccional experto en evaluaciones corporativas. Genera preguntas en español usando exclusivamente el contenido visible o disponible para el alumno en el curso. No inventes datos externos. Si un recurso es video, documento, imagen o enlace y solo hay título/URL/ruta disponible, genera preguntas únicamente sobre los datos textuales proporcionados de ese recurso. Devuelve datos que cumplan exactamente el esquema.",
         prompt: `Contenido mostrado al alumno en el curso:\n\n${materialForAi}\n\nPreguntas usadas recientemente que debes evitar:\n- ${previousQuestions || "Ninguna"}\n\nSemilla única para evitar repetición: ${emp!.id}-${data.quiz_id}-${intento_num}-${Date.now()}\nCantidad exacta requerida: ${quiz.num_preguntas}\n\nRequisitos:\n- Todas las preguntas deben evaluar comprensión real del contenido anterior.\n- Varía tipos entre: opcion_multiple, verdadero_falso, relacionar_columnas, completar_espacios, multiple_respuesta y situacional_analisis.\n- Varía dificultad entre basica, media y avanzada.\n- Evita preguntas repetidas o demasiado similares.\n- respuesta_correcta debe contener índices 0-based de opciones correctas.\n- Para verdadero_falso usa exactamente ["Verdadero","Falso"].\n- Para relacionar_columnas, cada opción debe tener formato "Concepto → Relación" y respuesta_correcta debe incluir los índices de los pares correctos.\n- Para completar_espacios, el enunciado debe contener ____ y las opciones son posibles respuestas.\n- Para situacional_analisis, plantea una situación breve aplicable al contenido del curso.\n- La justificación debe citar o resumir la parte del contenido usada.`,
       });
-      preguntas = sanitizeQuestions(object.preguntas, quiz.num_preguntas);
+      preguntas = sanitizeQuestions(object, quiz.num_preguntas);
     } catch (error) {
-      console.error("No se pudieron generar preguntas con IA; usando respaldo local.", error);
+      console.error("No se pudieron generar preguntas con IA; usando respaldo local.", error instanceof Error ? error.message : error);
     }
 
     if (preguntas.length < quiz.num_preguntas) {
