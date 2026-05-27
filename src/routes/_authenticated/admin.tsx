@@ -1,10 +1,18 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getMe } from "@/lib/hr.functions";
+import { Card, CardContent } from "@/components/ui/card";
+import { ShieldAlert, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/admin")({ component: AdminLayout });
 
 function AdminLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const me = useServerFn(getMe);
+  const meQ = useQuery({ queryKey: ["me-admin-gate"], queryFn: () => me(), staleTime: 60_000 });
+
   const tabs = [
     { to: "/admin", label: "Resumen" },
     { to: "/admin/employees", label: "Empleados" },
@@ -13,6 +21,30 @@ function AdminLayout() {
     { to: "/admin/reports", label: "Reportes" },
     { to: "/admin/audit", label: "Auditoría" },
   ];
+
+  if (meQ.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificando acceso…
+      </div>
+    );
+  }
+
+  if (!meQ.data?.isAdmin) {
+    return (
+      <Card className="mx-auto mt-16 max-w-md border-destructive/40">
+        <CardContent className="space-y-3 p-8 text-center">
+          <ShieldAlert className="mx-auto h-10 w-10 text-destructive" />
+          <h2 className="font-display text-xl">Acceso restringido</h2>
+          <p className="text-sm text-muted-foreground">
+            Solo el administrador autorizado puede ingresar al Centro de Control de RRHH.
+            Si necesitas acceso, comunícate con el responsable de MOR ACADEMY.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header>
