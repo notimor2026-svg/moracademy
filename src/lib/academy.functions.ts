@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
-import { generateText, Output } from "ai";
+import { generateObject, generateText, Output } from "ai";
 import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
 
 export const listMyAssignments = createServerFn({ method: "GET" })
@@ -127,19 +127,17 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
     }
 
     const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-3-flash-preview");
+    const model = gateway("google/gemini-2.5-flash");
 
-    const { output } = await generateText({
+    const { object } = await generateObject({
       model,
-      output: Output.object({
-        schema: z.object({ preguntas: z.array(QuestionSchema) }),
-      }),
+      schema: z.object({ preguntas: z.array(QuestionSchema) }),
       system:
-        "Eres un generador de evaluaciones educativas en español. REGLAS ESTRICTAS: usa ÚNICAMENTE el material entregado; no inventes hechos; no uses conocimiento externo; cada pregunta debe ser respondible exclusivamente con el material. Varía las preguntas usando la semilla provista.",
-      prompt: `Material del curso (hasta este punto):\n\n${material || "(sin material textual)"}\n\nSemilla de variación: ${emp!.id}-${intento_num}\nGenera exactamente ${quiz.num_preguntas} preguntas. Mezcla tipos (opción múltiple, verdadero/falso, múltiple respuesta). Para cada pregunta indica respuesta_correcta como índices (0-based) de las opciones correctas, y una justificacion citando la sección del material.`,
+        "Eres un generador de evaluaciones educativas en español. REGLAS ESTRICTAS: usa ÚNICAMENTE el material entregado; no inventes hechos; no uses conocimiento externo; cada pregunta debe ser respondible exclusivamente con el material. Varía las preguntas usando la semilla provista. Responde SIEMPRE con JSON válido que cumpla el esquema.",
+      prompt: `Material del curso (hasta este punto):\n\n${material || "(sin material textual)"}\n\nSemilla de variación: ${emp!.id}-${intento_num}\nGenera exactamente ${quiz.num_preguntas} preguntas. Mezcla tipos (opcion_multiple, verdadero_falso, multiple_respuesta). Para verdadero_falso usa exactamente las opciones ["Verdadero","Falso"]. respuesta_correcta debe ser un arreglo de índices 0-based de las opciones correctas (uno solo salvo en multiple_respuesta). Incluye justificacion citando la sección del material.`,
     });
 
-    const preguntas = output.preguntas.slice(0, quiz.num_preguntas);
+    const preguntas = object.preguntas.slice(0, quiz.num_preguntas);
 
     const { data: attempt, error } = await supabaseAdmin
       .from("quiz_attempts")
