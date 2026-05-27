@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getCourseEdit, updateCourse, upsertLesson, deleteLesson, reorderLessons } from "@/lib/hr.functions";
+import { upsertQuiz, deleteQuiz } from "@/lib/academy.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, Plus, Trash2, ArrowUp, ArrowDown, Pencil, X } from "lucide-react";
+import { Loader2, Save, Plus, Trash2, ArrowUp, ArrowDown, Pencil, X, ListChecks } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  QuestionsEditor,
+  QuestionErrors,
+  validateQuestions,
+  emptyQuestion,
+  type ManualQuestion,
+} from "@/components/QuestionsEditor";
+
 
 export const Route = createFileRoute("/_authenticated/admin/courses/$courseId/edit")({
   component: EditCourse,
