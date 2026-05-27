@@ -615,6 +615,36 @@ export type Database = {
           },
         ]
       }
+      saved_reports: {
+        Row: {
+          config: Json
+          created_at: string
+          entidad: string
+          id: string
+          nombre: string
+          owner_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          entidad: string
+          id?: string
+          nombre: string
+          owner_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          entidad?: string
+          id?: string
+          nombre?: string
+          owner_user_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
