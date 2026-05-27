@@ -60,6 +60,39 @@ function EditCourse() {
   }, [data, form]);
 
   const lessons: Lesson[] = (data?.lessons ?? []) as any;
+  const quizzes: any[] = (data?.quizzes ?? []) as any;
+
+  const [quizEditor, setQuizEditor] = useState<{
+    id?: string;
+    course_id: string;
+    lesson_id: string | null;
+    nombre: string;
+    es_final: boolean;
+    posicion: number;
+    umbral: number;
+    intentos_permitidos: number;
+    preguntas: ManualQuestion[];
+  } | null>(null);
+
+  const saveQuiz = useMutation({
+    mutationFn: () => upsertQuiz({ data: quizEditor as any }),
+    onSuccess: () => {
+      toast.success("Evaluación guardada");
+      setQuizEditor(null);
+      qc.invalidateQueries({ queryKey: ["course-edit", courseId] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const removeQuiz = useMutation({
+    mutationFn: (id: string) => deleteQuiz({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Evaluación eliminada");
+      qc.invalidateQueries({ queryKey: ["course-edit", courseId] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
 
   const saveCourse = useMutation({
     mutationFn: () =>
