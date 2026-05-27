@@ -71,32 +71,40 @@ export const markLessonComplete = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const questionTypes = [
+  "opcion_multiple",
+  "verdadero_falso",
+  "relacionar_columnas",
+  "completar_espacios",
+  "multiple_respuesta",
+  "situacional_analisis",
+] as const;
+
 const QuestionSchema = z.object({
-  enunciado: z.string(),
-  tipo: z.enum(["opcion_multiple", "verdadero_falso", "multiple_respuesta"]),
-  opciones: z.array(z.string()).min(2).max(6),
-  respuesta_correcta: z.array(z.number()).min(1),
-  justificacion: z.string(),
+  enunciado: z.string().min(8),
+  tipo: z.enum(questionTypes),
+  dificultad: z.enum(["basica", "media", "avanzada"]).default("media"),
+  opciones: z.array(z.string().min(1)).min(2).max(8),
+  respuesta_correcta: z.array(z.number().int()).min(1),
+  justificacion: z.string().min(8),
 });
 
 type QuizQuestion = z.infer<typeof QuestionSchema>;
 
-const QuizQuestionsSchema = z.object({
-  preguntas: z.array(QuestionSchema).min(1),
-});
-
 const normalizeQuestion = (question: QuizQuestion): QuizQuestion | null => {
+  const tipo = questionTypes.includes(question.tipo) ? question.tipo : "opcion_multiple";
   const opciones = question.tipo === "verdadero_falso"
     ? ["Verdadero", "Falso"]
-    : question.opciones.map((option) => option.trim()).filter(Boolean).slice(0, 6);
+    : Array.from(new Set(question.opciones.map((option) => option.trim()).filter(Boolean))).slice(0, 8);
   if (!question.enunciado.trim() || opciones.length < 2) return null;
   const respuesta_correcta = question.respuesta_correcta
     .filter((index) => Number.isInteger(index) && index >= 0 && index < opciones.length)
-    .slice(0, question.tipo === "multiple_respuesta" ? opciones.length : 1);
+    .slice(0, tipo === "multiple_respuesta" || tipo === "relacionar_columnas" ? opciones.length : 1);
   if (!respuesta_correcta.length) return null;
   return {
     enunciado: question.enunciado.trim(),
-    tipo: question.tipo,
+    tipo,
+    dificultad: question.dificultad ?? "media",
     opciones,
     respuesta_correcta,
     justificacion: question.justificacion.trim() || "Respuesta basada en el material del curso.",
@@ -105,7 +113,13 @@ const normalizeQuestion = (question: QuizQuestion): QuizQuestion | null => {
 
 const sanitizeQuestions = (questions: QuizQuestion[], count: number) => {
   const clean = questions.map(normalizeQuestion).filter((q): q is QuizQuestion => Boolean(q));
-  return clean.slice(0, count);
+  const seen = new Set<string>();
+  return clean.filter((question) => {
+    const key = question.enunciado.toLowerCase().replace(/\W+/g, " ").trim().slice(0, 90);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, count);
 };
 
 const buildFallbackQuestions = (material: string, count: number): QuizQuestion[] => {
@@ -124,18 +138,50 @@ const buildFallbackQuestions = (material: string, count: number): QuizQuestion[]
   return Array.from({ length: count }, (_, index) => {
     const sentence = source[index % source.length];
     const excerpt = sentence.length > 180 ? `${sentence.slice(0, 177)}…` : sentence;
-    if (index % 3 === 1) {
+    if (index % 5 === 1) {
       return {
         enunciado: `Verdadero o falso: ${excerpt}`,
         tipo: "verdadero_falso",
+        dificultad: "basica",
         opciones: ["Verdadero", "Falso"],
         respuesta_correcta: [0],
         justificacion: `La afirmación aparece en el material: “${excerpt}”.`,
       };
     }
+    if (index % 5 === 2) {
+      return {
+        enunciado: "Selecciona las afirmaciones que sí están respaldadas por el material del curso.",
+        tipo: "multiple_respuesta",
+        dificultad: "media",
+        opciones: [excerpt, "Una idea no mencionada en el recurso", "Una conclusión ajena al contenido", "Un dato externo al curso"],
+        respuesta_correcta: [0],
+        justificacion: `La afirmación correcta proviene del material: “${excerpt}”.`,
+      };
+    }
+    if (index % 5 === 3) {
+      return {
+        enunciado: "Completa la idea central con la opción que mejor representa el contenido estudiado.",
+        tipo: "completar_espacios",
+        dificultad: "media",
+        opciones: [excerpt, "un procedimiento no cubierto", "una práctica contraria", "un concepto no relacionado"],
+        respuesta_correcta: [0],
+        justificacion: `La opción correcta completa la idea con información del curso: “${excerpt}”.`,
+      };
+    }
+    if (index % 5 === 4) {
+      return {
+        enunciado: "Ante una situación laboral relacionada con el tema, ¿qué interpretación se alinea mejor con el curso?",
+        tipo: "situacional_analisis",
+        dificultad: "avanzada",
+        opciones: [excerpt, "Ignorar el contenido del curso", "Aplicar un criterio externo", "Elegir una acción sin analizar el material"],
+        respuesta_correcta: [0],
+        justificacion: `La interpretación correcta se basa en el fragmento: “${excerpt}”.`,
+      };
+    }
     return {
       enunciado: `¿Cuál opción coincide mejor con el material revisado?`,
       tipo: "opcion_multiple",
+      dificultad: "basica",
       opciones: [excerpt, ...genericOptions.slice(1)],
       respuesta_correcta: [0],
       justificacion: `La respuesta correcta corresponde al fragmento del material: “${excerpt}”.`,
@@ -167,24 +213,38 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
     // Contenido hasta este punto
     const { data: lessons } = await supabase
       .from("course_lessons")
-      .select("titulo, contenido, text_excerpt, orden, tipo")
+      .select("titulo, contenido, text_excerpt, orden, tipo, url_externa, storage_path, modulo, seccion")
       .eq("course_id", quiz.course_id)
       .order("orden");
     const material = (lessons ?? [])
       .filter((l) => (l.orden ?? 0) <= (quiz.posicion ?? 999))
-      .map((l) =>
-        `## ${l.titulo}\n${l.contenido ?? l.text_excerpt ?? "(material multimedia)"}`,
-      )
+      .map((l) => {
+        const parts = [
+          `## ${l.titulo}`,
+          l.modulo ? `Módulo: ${l.modulo}` : "",
+          l.seccion ? `Sección: ${l.seccion}` : "",
+          `Tipo de recurso: ${l.tipo ?? "texto"}`,
+          l.contenido || l.text_excerpt || "",
+          l.url_externa ? `Recurso externo mostrado al alumno: ${l.url_externa}` : "",
+          l.storage_path ? `Documento o imagen del curso: ${l.storage_path}` : "",
+        ].filter(Boolean);
+        return parts.join("\n");
+      })
       .join("\n\n");
 
     const { data: prev } = await supabase
       .from("quiz_attempts")
-      .select("intento_num")
+      .select("intento_num, preguntas")
       .eq("quiz_id", data.quiz_id)
       .eq("employee_id", emp!.id)
       .order("intento_num", { ascending: false })
       .limit(1);
     const intento_num = (prev?.[0]?.intento_num ?? 0) + 1;
+    const previousQuestions = ((prev?.[0]?.preguntas as Array<{ enunciado?: string }> | null) ?? [])
+      .map((question) => question.enunciado)
+      .filter(Boolean)
+      .slice(0, 10)
+      .join("\n- ");
 
     if (intento_num > quiz.intentos_permitidos) {
       throw new Error("Has agotado los intentos permitidos.");
@@ -193,20 +253,23 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
     const gateway = createLovableAiGatewayProvider(key);
     const model = gateway("google/gemini-2.5-flash");
 
-    const materialForAi = (material || "Sin material textual suficiente.").slice(0, 12000);
+    const materialForAi = (material || "Sin material textual suficiente.").slice(0, 18000);
     let preguntas: QuizQuestion[] = [];
 
     try {
       const { object } = await generateObject({
         model,
-        schema: QuizQuestionsSchema,
+        output: "array",
+        schema: QuestionSchema,
+        maxOutputTokens: 8192,
+        temperature: 0.7,
         system:
-          "Eres un generador de evaluaciones educativas en español. Crea preguntas claras y breves usando únicamente el material entregado. Devuelve solo datos que cumplan el esquema solicitado.",
-        prompt: `Material del curso:\n\n${materialForAi}\n\nSemilla: ${emp!.id}-${intento_num}\nCantidad exacta: ${quiz.num_preguntas}\nReglas: usa preguntas respondibles solo con el material; mezcla opcion_multiple y verdadero_falso; para verdadero_falso usa exactamente ["Verdadero","Falso"]; respuesta_correcta son índices 0-based; incluye una justificación corta basada en el material.`,
+          "Eres un diseñador instruccional experto en evaluaciones corporativas. Genera preguntas en español usando exclusivamente el contenido visible o disponible para el alumno en el curso. No inventes datos externos. Si un recurso es video, documento, imagen o enlace y solo hay título/URL/ruta disponible, genera preguntas únicamente sobre los datos textuales proporcionados de ese recurso. Devuelve datos que cumplan exactamente el esquema.",
+        prompt: `Contenido mostrado al alumno en el curso:\n\n${materialForAi}\n\nPreguntas usadas recientemente que debes evitar:\n- ${previousQuestions || "Ninguna"}\n\nSemilla única para evitar repetición: ${emp!.id}-${data.quiz_id}-${intento_num}-${Date.now()}\nCantidad exacta requerida: ${quiz.num_preguntas}\n\nRequisitos:\n- Todas las preguntas deben evaluar comprensión real del contenido anterior.\n- Varía tipos entre: opcion_multiple, verdadero_falso, relacionar_columnas, completar_espacios, multiple_respuesta y situacional_analisis.\n- Varía dificultad entre basica, media y avanzada.\n- Evita preguntas repetidas o demasiado similares.\n- respuesta_correcta debe contener índices 0-based de opciones correctas.\n- Para verdadero_falso usa exactamente ["Verdadero","Falso"].\n- Para relacionar_columnas, cada opción debe tener formato "Concepto → Relación" y respuesta_correcta debe incluir los índices de los pares correctos.\n- Para completar_espacios, el enunciado debe contener ____ y las opciones son posibles respuestas.\n- Para situacional_analisis, plantea una situación breve aplicable al contenido del curso.\n- La justificación debe citar o resumir la parte del contenido usada.`,
       });
-      preguntas = sanitizeQuestions(object.preguntas, quiz.num_preguntas);
+      preguntas = sanitizeQuestions(object, quiz.num_preguntas);
     } catch (error) {
-      console.error("No se pudieron generar preguntas con IA; usando respaldo local.", error);
+      console.error("No se pudieron generar preguntas con IA; usando respaldo local.", error instanceof Error ? error.message : error);
     }
 
     if (preguntas.length < quiz.num_preguntas) {
