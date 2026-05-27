@@ -217,14 +217,23 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
     // Contenido hasta este punto
     const { data: lessons } = await supabase
       .from("course_lessons")
-      .select("titulo, contenido, text_excerpt, orden, tipo")
+      .select("titulo, contenido, text_excerpt, orden, tipo, url_externa, storage_path, modulo, seccion")
       .eq("course_id", quiz.course_id)
       .order("orden");
     const material = (lessons ?? [])
       .filter((l) => (l.orden ?? 0) <= (quiz.posicion ?? 999))
-      .map((l) =>
-        `## ${l.titulo}\n${l.contenido ?? l.text_excerpt ?? "(material multimedia)"}`,
-      )
+      .map((l) => {
+        const parts = [
+          `## ${l.titulo}`,
+          l.modulo ? `Módulo: ${l.modulo}` : "",
+          l.seccion ? `Sección: ${l.seccion}` : "",
+          `Tipo de recurso: ${l.tipo ?? "texto"}`,
+          l.contenido || l.text_excerpt || "",
+          l.url_externa ? `Recurso externo mostrado al alumno: ${l.url_externa}` : "",
+          l.storage_path ? `Documento o imagen del curso: ${l.storage_path}` : "",
+        ].filter(Boolean);
+        return parts.join("\n");
+      })
       .join("\n\n");
 
     const { data: prev } = await supabase
@@ -243,16 +252,18 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
     const gateway = createLovableAiGatewayProvider(key);
     const model = gateway("google/gemini-2.5-flash");
 
-    const materialForAi = (material || "Sin material textual suficiente.").slice(0, 12000);
+    const materialForAi = (material || "Sin material textual suficiente.").slice(0, 18000);
     let preguntas: QuizQuestion[] = [];
 
     try {
       const { object } = await generateObject({
         model,
         schema: QuizQuestionsSchema,
+        maxOutputTokens: 8192,
+        temperature: 0.7,
         system:
-          "Eres un generador de evaluaciones educativas en español. Crea preguntas claras y breves usando únicamente el material entregado. Devuelve solo datos que cumplan el esquema solicitado.",
-        prompt: `Material del curso:\n\n${materialForAi}\n\nSemilla: ${emp!.id}-${intento_num}\nCantidad exacta: ${quiz.num_preguntas}\nReglas: usa preguntas respondibles solo con el material; mezcla opcion_multiple y verdadero_falso; para verdadero_falso usa exactamente ["Verdadero","Falso"]; respuesta_correcta son índices 0-based; incluye una justificación corta basada en el material.`,
+          "Eres un diseñador instruccional experto en evaluaciones corporativas. Genera preguntas en español usando exclusivamente el contenido visible o disponible para el alumno en el curso. No inventes datos externos. Si un recurso es video, documento, imagen o enlace y solo hay título/URL/ruta disponible, genera preguntas únicamente sobre los datos textuales proporcionados de ese recurso. Devuelve datos que cumplan exactamente el esquema.",
+        prompt: `Contenido mostrado al alumno en el curso:\n\n${materialForAi}\n\nSemilla única para evitar repetición: ${emp!.id}-${data.quiz_id}-${intento_num}-${Date.now()}\nCantidad exacta requerida: ${quiz.num_preguntas}\n\nRequisitos:\n- Todas las preguntas deben evaluar comprensión real del contenido anterior.\n- Varía tipos entre: opcion_multiple, verdadero_falso, relacionar_columnas, completar_espacios, multiple_respuesta y situacional_analisis.\n- Varía dificultad entre basica, media y avanzada.\n- Evita preguntas repetidas o demasiado similares.\n- respuesta_correcta debe contener índices 0-based de opciones correctas.\n- Para verdadero_falso usa exactamente ["Verdadero","Falso"].\n- Para relacionar_columnas, cada opción debe tener formato "Concepto → Relación" y respuesta_correcta debe incluir los índices de los pares correctos.\n- Para completar_espacios, el enunciado debe contener ____ y las opciones son posibles respuestas.\n- Para situacional_analisis, plantea una situación breve aplicable al contenido del curso.\n- La justificación debe citar o resumir la parte del contenido usada.`,
       });
       preguntas = sanitizeQuestions(object.preguntas, quiz.num_preguntas);
     } catch (error) {
