@@ -16,10 +16,20 @@ export const Route = createFileRoute("/_authenticated/quiz/$quizId")({ component
 
 type Pregunta = {
   enunciado: string;
-  tipo: "opcion_multiple" | "verdadero_falso" | "multiple_respuesta";
+  tipo: "opcion_multiple" | "verdadero_falso" | "relacionar_columnas" | "completar_espacios" | "multiple_respuesta" | "situacional_analisis";
+  dificultad?: "basica" | "media" | "avanzada";
   opciones: string[];
   respuesta_correcta: number[];
   justificacion: string;
+};
+
+const typeLabel: Record<Pregunta["tipo"], string> = {
+  opcion_multiple: "Opción múltiple",
+  verdadero_falso: "Verdadero/Falso",
+  relacionar_columnas: "Relacionar",
+  completar_espacios: "Completar",
+  multiple_respuesta: "Selección múltiple",
+  situacional_analisis: "Análisis",
 };
 
 function QuizPage() {
@@ -91,7 +101,13 @@ function QuizPage() {
             <Card key={i} className={ok ? "border-success/30" : "border-warning/30"}>
               <CardContent className="space-y-3 p-5">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium">{i + 1}. {p.enunciado}</p>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">{typeLabel[p.tipo] ?? "Pregunta"}</Badge>
+                      {p.dificultad && <Badge variant="secondary">{p.dificultad}</Badge>}
+                    </div>
+                    <p className="font-medium">{i + 1}. {p.enunciado}</p>
+                  </div>
                   {ok ? <CheckCircle2 className="h-5 w-5 text-success" /> : <XCircle className="h-5 w-5 text-warning" />}
                 </div>
                 <ul className="space-y-1 text-sm">
@@ -131,11 +147,17 @@ function QuizPage() {
         </div>
       </header>
       {preguntas.map((p, qi) => {
-        const isMulti = p.tipo === "multiple_respuesta";
+        const isMulti = p.tipo === "multiple_respuesta" || p.tipo === "relacionar_columnas";
         return (
           <Card key={qi} className="border-border/60">
             <CardContent className="space-y-4 p-6">
-              <p className="font-medium">{qi + 1}. {p.enunciado}</p>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">{typeLabel[p.tipo] ?? "Pregunta"}</Badge>
+                  {p.dificultad && <Badge variant="secondary">{p.dificultad}</Badge>}
+                </div>
+                <p className="font-medium">{qi + 1}. {p.enunciado}</p>
+              </div>
               {isMulti ? (
                 <div className="space-y-2">
                   {p.opciones.map((o, idx) => {
