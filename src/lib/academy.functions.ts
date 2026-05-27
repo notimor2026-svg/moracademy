@@ -91,10 +91,6 @@ const QuestionSchema = z.object({
 
 type QuizQuestion = z.infer<typeof QuestionSchema>;
 
-const QuizQuestionsSchema = z.object({
-  preguntas: z.array(QuestionSchema).min(1),
-});
-
 const normalizeQuestion = (question: QuizQuestion): QuizQuestion | null => {
   const tipo = questionTypes.includes(question.tipo) ? question.tipo : "opcion_multiple";
   const opciones = question.tipo === "verdadero_falso"
