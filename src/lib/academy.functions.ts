@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
-import { generateObject, generateText, Output } from "ai";
+import { generateObject } from "ai";
 import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
 
 export const listMyAssignments = createServerFn({ method: "GET" })
@@ -79,6 +79,70 @@ const QuestionSchema = z.object({
   justificacion: z.string(),
 });
 
+type QuizQuestion = z.infer<typeof QuestionSchema>;
+
+const QuizQuestionsSchema = z.object({
+  preguntas: z.array(QuestionSchema).min(1),
+});
+
+const normalizeQuestion = (question: QuizQuestion): QuizQuestion | null => {
+  const opciones = question.tipo === "verdadero_falso"
+    ? ["Verdadero", "Falso"]
+    : question.opciones.map((option) => option.trim()).filter(Boolean).slice(0, 6);
+  if (!question.enunciado.trim() || opciones.length < 2) return null;
+  const respuesta_correcta = question.respuesta_correcta
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < opciones.length)
+    .slice(0, question.tipo === "multiple_respuesta" ? opciones.length : 1);
+  if (!respuesta_correcta.length) return null;
+  return {
+    enunciado: question.enunciado.trim(),
+    tipo: question.tipo,
+    opciones,
+    respuesta_correcta,
+    justificacion: question.justificacion.trim() || "Respuesta basada en el material del curso.",
+  };
+};
+
+const sanitizeQuestions = (questions: QuizQuestion[], count: number) => {
+  const clean = questions.map(normalizeQuestion).filter((q): q is QuizQuestion => Boolean(q));
+  return clean.slice(0, count);
+};
+
+const buildFallbackQuestions = (material: string, count: number): QuizQuestion[] => {
+  const cleaned = material
+    .replace(/[#*_>`-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const sentences = cleaned
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length >= 35)
+    .slice(0, Math.max(count, 3));
+  const source = sentences.length ? sentences : [cleaned || "El curso no contiene suficiente material textual para generar preguntas detalladas."];
+  const genericOptions = ["Según el material del curso", "No se menciona en el material", "Una afirmación externa", "Una conclusión no relacionada"];
+
+  return Array.from({ length: count }, (_, index) => {
+    const sentence = source[index % source.length];
+    const excerpt = sentence.length > 180 ? `${sentence.slice(0, 177)}…` : sentence;
+    if (index % 3 === 1) {
+      return {
+        enunciado: `Verdadero o falso: ${excerpt}`,
+        tipo: "verdadero_falso",
+        opciones: ["Verdadero", "Falso"],
+        respuesta_correcta: [0],
+        justificacion: `La afirmación aparece en el material: “${excerpt}”.`,
+      };
+    }
+    return {
+      enunciado: `¿Cuál opción coincide mejor con el material revisado?`,
+      tipo: "opcion_multiple",
+      opciones: [excerpt, ...genericOptions.slice(1)],
+      respuesta_correcta: [0],
+      justificacion: `La respuesta correcta corresponde al fragmento del material: “${excerpt}”.`,
+    };
+  });
+};
+
 export const startQuizAttempt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ quiz_id: z.string().uuid() }).parse(d))
@@ -129,15 +193,26 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
     const gateway = createLovableAiGatewayProvider(key);
     const model = gateway("google/gemini-2.5-flash");
 
-    const { object } = await generateObject({
-      model,
-      schema: z.object({ preguntas: z.array(QuestionSchema) }),
-      system:
-        "Eres un generador de evaluaciones educativas en español. REGLAS ESTRICTAS: usa ÚNICAMENTE el material entregado; no inventes hechos; no uses conocimiento externo; cada pregunta debe ser respondible exclusivamente con el material. Varía las preguntas usando la semilla provista. Responde SIEMPRE con JSON válido que cumpla el esquema.",
-      prompt: `Material del curso (hasta este punto):\n\n${material || "(sin material textual)"}\n\nSemilla de variación: ${emp!.id}-${intento_num}\nGenera exactamente ${quiz.num_preguntas} preguntas. Mezcla tipos (opcion_multiple, verdadero_falso, multiple_respuesta). Para verdadero_falso usa exactamente las opciones ["Verdadero","Falso"]. respuesta_correcta debe ser un arreglo de índices 0-based de las opciones correctas (uno solo salvo en multiple_respuesta). Incluye justificacion citando la sección del material.`,
-    });
+    const materialForAi = (material || "Sin material textual suficiente.").slice(0, 12000);
+    let preguntas: QuizQuestion[] = [];
 
-    const preguntas = object.preguntas.slice(0, quiz.num_preguntas);
+    try {
+      const { object } = await generateObject({
+        model,
+        schema: QuizQuestionsSchema,
+        system:
+          "Eres un generador de evaluaciones educativas en español. Crea preguntas claras y breves usando únicamente el material entregado. Devuelve solo datos que cumplan el esquema solicitado.",
+        prompt: `Material del curso:\n\n${materialForAi}\n\nSemilla: ${emp!.id}-${intento_num}\nCantidad exacta: ${quiz.num_preguntas}\nReglas: usa preguntas respondibles solo con el material; mezcla opcion_multiple y verdadero_falso; para verdadero_falso usa exactamente ["Verdadero","Falso"]; respuesta_correcta son índices 0-based; incluye una justificación corta basada en el material.`,
+      });
+      preguntas = sanitizeQuestions(object.preguntas, quiz.num_preguntas);
+    } catch (error) {
+      console.error("No se pudieron generar preguntas con IA; usando respaldo local.", error);
+    }
+
+    if (preguntas.length < quiz.num_preguntas) {
+      const fallback = buildFallbackQuestions(material, quiz.num_preguntas - preguntas.length);
+      preguntas = [...preguntas, ...fallback].slice(0, quiz.num_preguntas);
+    }
 
     const { data: attempt, error } = await supabaseAdmin
       .from("quiz_attempts")
