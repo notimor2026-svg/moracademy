@@ -92,16 +92,18 @@ function Reports() {
   const runFn = useServerFn(runAdHocReport);
   const saveFn = useServerFn(saveReport);
   const delFn = useServerFn(deleteSavedReport);
+  const coursesFn = useServerFn(listCoursesBasic);
+  const savedFn = useServerFn(listSavedReports);
   const qc = useQueryClient();
 
   const coursesQ = useQuery({
     queryKey: ["reports-courses"],
-    queryFn: () => useServerFn(listCoursesBasic)(),
+    queryFn: () => coursesFn(),
     staleTime: 5 * 60_000,
   });
   const savedQ = useQuery({
     queryKey: ["saved-reports"],
-    queryFn: () => useServerFn(listSavedReports)(),
+    queryFn: () => savedFn(),
     staleTime: 60_000,
   });
 
