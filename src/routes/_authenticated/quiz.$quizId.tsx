@@ -73,12 +73,13 @@ function QuizPage() {
       <Card className="mx-auto max-w-2xl border-border/60">
         <CardContent className="flex flex-col items-center gap-3 p-12 text-center">
           <Sparkles className="h-10 w-10 text-gold animate-pulse" />
-          <h2 className="font-display text-xl">Generando tu evaluación personalizada…</h2>
-          <p className="text-sm text-muted-foreground">Estamos preparando preguntas únicas con base en el material del curso.</p>
+          <h2 className="font-display text-xl">Preparando tu evaluación…</h2>
+          <p className="text-sm text-muted-foreground">Estamos cargando las preguntas del curso.</p>
         </CardContent>
       </Card>
     );
   }
+
 
   if (result) {
     return (
