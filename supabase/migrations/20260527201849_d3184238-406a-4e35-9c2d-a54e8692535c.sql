@@ -1,0 +1,1 @@
+ALTER TABLE public.quizzes ADD COLUMN IF NOT EXISTS preguntas jsonb NOT NULL DEFAULT '[]'::jsonb;

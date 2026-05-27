@@ -10,8 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Loader2, Sparkles } from "lucide-react";
+import { Plus, Trash2, Loader2, ListChecks } from "lucide-react";
 import { toast } from "sonner";
+import {
+  QuestionsEditor,
+  QuestionErrors,
+  validateQuestions,
+  type ManualQuestion,
+} from "@/components/QuestionsEditor";
 
 export const Route = createFileRoute("/_authenticated/admin/courses/new")({ component: NewCourse });
 
@@ -25,14 +31,37 @@ function NewCourse() {
     nota_minima: 80, intentos_max: 3,
   });
   const [lessons, setLessons] = useState<Lesson[]>([{ titulo: "", tipo: "texto", contenido: "", obligatorio: true }]);
-  const [quiz, setQuiz] = useState({ enabled: true, num_preguntas: 5, umbral: 80, intentos_permitidos: 3 });
+  const [quiz, setQuiz] = useState<{
+    enabled: boolean;
+    alcance: "final" | "por_leccion";
+    umbral: number;
+    intentos_permitidos: number;
+    preguntas: ManualQuestion[];
+    preguntas_por_leccion: ManualQuestion[][];
+  }>({
+    enabled: true,
+    alcance: "final",
+    umbral: 80,
+    intentos_permitidos: 3,
+    preguntas: [],
+    preguntas_por_leccion: [[]],
+  });
 
   const m = useMutation({
     mutationFn: () => fn({
       data: {
         ...course,
         lecciones: lessons,
-        quiz_final: quiz.enabled ? { num_preguntas: quiz.num_preguntas, umbral: quiz.umbral, intentos_permitidos: quiz.intentos_permitidos } : undefined,
+        quiz: quiz.enabled
+          ? {
+              enabled: true,
+              alcance: quiz.alcance,
+              umbral: quiz.umbral,
+              intentos_permitidos: quiz.intentos_permitidos,
+              preguntas: quiz.alcance === "final" ? quiz.preguntas : [],
+              preguntas_por_leccion: quiz.alcance === "por_leccion" ? quiz.preguntas_por_leccion : [],
+            }
+          : undefined,
       },
     }),
     onSuccess: () => { toast.success("Curso creado"); nav({ to: "/admin/courses" }); },
@@ -41,6 +70,37 @@ function NewCourse() {
 
   const updateLesson = (i: number, patch: Partial<Lesson>) =>
     setLessons((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+
+  const addLesson = () => {
+    setLessons([...lessons, { titulo: "", tipo: "texto", contenido: "", obligatorio: true }]);
+    setQuiz((q) => ({ ...q, preguntas_por_leccion: [...q.preguntas_por_leccion, []] }));
+  };
+
+  const removeLesson = (i: number) => {
+    setLessons(lessons.filter((_, idx) => idx !== i));
+    setQuiz((q) => ({ ...q, preguntas_por_leccion: q.preguntas_por_leccion.filter((_, idx) => idx !== i) }));
+  };
+
+  // Validaciones
+  const quizErrors: string[] = [];
+  if (quiz.enabled) {
+    if (quiz.alcance === "final") {
+      if (!quiz.preguntas.length) quizErrors.push("La evaluación final debe tener al menos una pregunta.");
+      quizErrors.push(...validateQuestions(quiz.preguntas));
+    } else {
+      const hasAny = quiz.preguntas_por_leccion.some((arr) => arr.length > 0);
+      if (!hasAny) quizErrors.push("Agrega preguntas a al menos una lección.");
+      quiz.preguntas_por_leccion.forEach((arr, i) => {
+        validateQuestions(arr).forEach((e) => quizErrors.push(`Lección ${i + 1} — ${e}`));
+      });
+    }
+  }
+
+  const missing: string[] = [];
+  if (!course.nombre.trim()) missing.push("nombre del curso");
+  const emptyLessons = lessons.filter((l) => !l.titulo.trim()).length;
+  if (emptyLessons > 0) missing.push(`título en ${emptyLessons} lección(es)`);
+  const disabled = m.isPending || missing.length > 0 || quizErrors.length > 0;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -69,7 +129,7 @@ function NewCourse() {
         <CardContent className="space-y-4 p-6 sm:p-8">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-2xl font-semibold">Lecciones</h2>
-            <Button size="sm" variant="outline" onClick={() => setLessons([...lessons, { titulo: "", tipo: "texto", contenido: "", obligatorio: true }])}>
+            <Button size="sm" variant="outline" onClick={addLesson}>
               <Plus className="mr-1 h-4 w-4" /> Añadir lección
             </Button>
           </div>
@@ -79,7 +139,7 @@ function NewCourse() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Lección {i + 1}</span>
                   {lessons.length > 1 && (
-                    <Button size="icon" variant="ghost" onClick={() => setLessons(lessons.filter((_, idx) => idx !== i))}>
+                    <Button size="icon" variant="ghost" onClick={() => removeLesson(i)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   )}
@@ -96,7 +156,7 @@ function NewCourse() {
                   </Select>
                 </div>
                 {l.tipo === "texto" ? (
-                  <Textarea rows={5} placeholder="Contenido (este texto será usado por la IA para generar preguntas)" value={l.contenido} onChange={(e) => updateLesson(i, { contenido: e.target.value })} />
+                  <Textarea rows={5} placeholder="Contenido de la lección" value={l.contenido} onChange={(e) => updateLesson(i, { contenido: e.target.value })} />
                 ) : (
                   <Input placeholder="https://..." value={l.url_externa ?? ""} onChange={(e) => updateLesson(i, { url_externa: e.target.value })} />
                 )}
@@ -107,46 +167,84 @@ function NewCourse() {
       </Card>
 
       <Card className="border-border/60">
-        <CardContent className="space-y-4 p-6 sm:p-8">
+        <CardContent className="space-y-5 p-6 sm:p-8">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-display text-2xl font-semibold flex items-center gap-2"><Sparkles className="h-5 w-5 text-gold" /> Evaluación final con IA</h2>
-              <p className="text-sm text-muted-foreground">Se generará automáticamente desde el contenido de las lecciones.</p>
+              <h2 className="font-display text-2xl font-semibold flex items-center gap-2">
+                <ListChecks className="h-5 w-5 text-primary" /> Evaluación / Quiz del curso
+              </h2>
+              <p className="text-sm text-muted-foreground">Crea manualmente las preguntas que verá el alumno.</p>
             </div>
             <Switch checked={quiz.enabled} onCheckedChange={(c) => setQuiz({ ...quiz, enabled: c })} />
           </div>
+
           {quiz.enabled && (
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="space-y-1.5"><Label># Preguntas</Label><Input type="number" min={3} max={15} value={quiz.num_preguntas} onChange={(e) => setQuiz({ ...quiz, num_preguntas: +e.target.value })} /></div>
-              <div className="space-y-1.5"><Label>Umbral (%)</Label><Input type="number" min={50} max={100} value={quiz.umbral} onChange={(e) => setQuiz({ ...quiz, umbral: +e.target.value })} /></div>
-              <div className="space-y-1.5"><Label>Intentos</Label><Input type="number" min={1} max={10} value={quiz.intentos_permitidos} onChange={(e) => setQuiz({ ...quiz, intentos_permitidos: +e.target.value })} /></div>
-            </div>
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label>¿Cuándo aparece?</Label>
+                  <Select value={quiz.alcance} onValueChange={(v) => setQuiz({ ...quiz, alcance: v as any })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="final">Al final del curso</SelectItem>
+                      <SelectItem value="por_leccion">Después de cada lección</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5"><Label>Umbral aprobación (%)</Label><Input type="number" min={50} max={100} value={quiz.umbral} onChange={(e) => setQuiz({ ...quiz, umbral: +e.target.value })} /></div>
+                <div className="space-y-1.5"><Label>Intentos permitidos</Label><Input type="number" min={1} max={10} value={quiz.intentos_permitidos} onChange={(e) => setQuiz({ ...quiz, intentos_permitidos: +e.target.value })} /></div>
+              </div>
+
+              {quiz.alcance === "final" ? (
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Preguntas de la evaluación final</Label>
+                  <QuestionsEditor
+                    value={quiz.preguntas}
+                    onChange={(preguntas) => setQuiz({ ...quiz, preguntas })}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {lessons.map((l, i) => (
+                    <div key={i} className="rounded-lg border border-border/60 p-4">
+                      <Label className="text-sm font-semibold">
+                        Preguntas de la lección {i + 1}{l.titulo ? `: ${l.titulo}` : ""}
+                      </Label>
+                      <div className="mt-3">
+                        <QuestionsEditor
+                          value={quiz.preguntas_por_leccion[i] ?? []}
+                          onChange={(preguntas) => {
+                            const next = quiz.preguntas_por_leccion.slice();
+                            while (next.length < lessons.length) next.push([]);
+                            next[i] = preguntas;
+                            setQuiz({ ...quiz, preguntas_por_leccion: next });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <QuestionErrors errors={quizErrors} />
+            </>
           )}
         </CardContent>
       </Card>
 
-      {(() => {
-        const missing: string[] = [];
-        if (!course.nombre.trim()) missing.push("nombre del curso");
-        const emptyLessons = lessons.filter((l) => !l.titulo.trim()).length;
-        if (emptyLessons > 0) missing.push(`título en ${emptyLessons} lección(es)`);
-        const disabled = m.isPending || missing.length > 0;
-        return (
-          <div className="space-y-2">
-            {missing.length > 0 && (
-              <p className="text-right text-xs text-muted-foreground">
-                Falta: {missing.join(" · ")}
-              </p>
-            )}
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => nav({ to: "/admin/courses" })}>Cancelar</Button>
-              <Button onClick={() => m.mutate()} disabled={disabled} title={missing.length ? `Completa: ${missing.join(", ")}` : ""}>
-                {m.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Publicando…</> : "Publicar curso"}
-              </Button>
-            </div>
-          </div>
-        );
-      })()}
+      <div className="space-y-2">
+        {missing.length > 0 && (
+          <p className="text-right text-xs text-muted-foreground">
+            Falta: {missing.join(" · ")}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => nav({ to: "/admin/courses" })}>Cancelar</Button>
+          <Button onClick={() => m.mutate()} disabled={disabled}>
+            {m.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Publicando…</> : "Publicar curso"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
