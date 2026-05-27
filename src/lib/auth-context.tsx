@@ -10,15 +10,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
-      setLoading(false);
-    });
+    let mounted = true;
+    // 1) Resolver la sesión inicial PRIMERO. Evita un render intermedio con
+    //    session=null que dispare redirecciones a /login.
     supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
       setSession(data.session);
       setLoading(false);
     });
-    return () => sub.subscription.unsubscribe();
+    // 2) Suscribirse a cambios posteriores SIN tocar `loading`. Esto evita
+    //    el loop /home <-> /login al refrescar el token.
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (!mounted) return;
+      setSession(s);
+    });
+    return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, []);
 
   return <Ctx.Provider value={{ session, loading }}>{children}</Ctx.Provider>;
