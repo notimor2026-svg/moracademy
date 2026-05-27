@@ -728,3 +728,178 @@ export const listOutbox = createServerFn({ method: "GET" })
       .limit(100);
     return data ?? [];
   });
+
+// ============== AD-HOC REPORTS ==============
+
+const ReportFiltersSchema = z.object({
+  entidad: z.enum(["empleados", "asignaciones", "certificados", "intentos"]),
+  area: z.string().optional(),
+  cargo: z.string().optional(),
+  estado: z.string().optional(),
+  tipo_proceso: z.string().optional(),
+  origen: z.string().optional(),
+  curso_id: z.string().uuid().optional(),
+  aprobado: z.boolean().optional(),
+  desde: z.string().optional(),
+  hasta: z.string().optional(),
+  search: z.string().optional(),
+  limit: z.number().min(1).max(5000).default(2000),
+});
+
+export const runAdHocReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => ReportFiltersSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    const { entidad, area, cargo, estado, tipo_proceso, origen, curso_id, aprobado, desde, hasta, search, limit } = data;
+
+    if (entidad === "empleados") {
+      let q = supabaseAdmin
+        .from("employees")
+        .select("dui, nombre, email, area, cargo, fecha_ingreso, tipo_proceso, estado, xp, requisicion_id, created_at")
+        .limit(limit)
+        .order("nombre");
+      if (area) q = q.eq("area", area);
+      if (cargo) q = q.eq("cargo", cargo);
+      if (estado) q = q.eq("estado", estado);
+      if (tipo_proceso) q = q.eq("tipo_proceso", tipo_proceso);
+      if (desde) q = q.gte("fecha_ingreso", desde);
+      if (hasta) q = q.lte("fecha_ingreso", hasta);
+      if (search) q = q.or(`nombre.ilike.%${search}%,dui.ilike.%${search}%,email.ilike.%${search}%`);
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      return rows ?? [];
+    }
+
+    if (entidad === "asignaciones") {
+      let q = supabaseAdmin
+        .from("course_assignments")
+        .select("estado, origen, intentos_consumidos, mejor_nota, fecha_asignacion, fecha_finalizacion, fecha_vencimiento, employees(dui, nombre, area, cargo), courses(id, nombre, tipo)")
+        .limit(limit)
+        .order("fecha_asignacion", { ascending: false });
+      if (estado) q = q.eq("estado", estado);
+      if (origen) q = q.eq("origen", origen);
+      if (curso_id) q = q.eq("course_id", curso_id);
+      if (desde) q = q.gte("fecha_asignacion", desde);
+      if (hasta) q = q.lte("fecha_asignacion", hasta);
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      let mapped = (rows ?? []).map((r: any) => ({
+        dui: r.employees?.dui, empleado: r.employees?.nombre, area: r.employees?.area, cargo: r.employees?.cargo,
+        curso: r.courses?.nombre, tipo_curso: r.courses?.tipo,
+        estado: r.estado, origen: r.origen,
+        intentos: r.intentos_consumidos, mejor_nota: r.mejor_nota,
+        asignado: r.fecha_asignacion, finalizado: r.fecha_finalizacion, vencimiento: r.fecha_vencimiento,
+      }));
+      if (area) mapped = mapped.filter((m) => m.area === area);
+      if (cargo) mapped = mapped.filter((m) => m.cargo === cargo);
+      if (search) {
+        const s = search.toLowerCase();
+        mapped = mapped.filter((m) => `${m.empleado} ${m.dui} ${m.curso}`.toLowerCase().includes(s));
+      }
+      return mapped;
+    }
+
+    if (entidad === "certificados") {
+      let q = supabaseAdmin
+        .from("certificates")
+        .select("codigo, nota, fecha_emision, employees(dui, nombre, area, cargo), courses(id, nombre), course_id")
+        .limit(limit)
+        .order("fecha_emision", { ascending: false });
+      if (curso_id) q = q.eq("course_id", curso_id);
+      if (desde) q = q.gte("fecha_emision", desde);
+      if (hasta) q = q.lte("fecha_emision", hasta);
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      let mapped = (rows ?? []).map((r: any) => ({
+        codigo: r.codigo, dui: r.employees?.dui, empleado: r.employees?.nombre,
+        area: r.employees?.area, cargo: r.employees?.cargo,
+        curso: r.courses?.nombre, nota: r.nota, emitido: r.fecha_emision,
+      }));
+      if (area) mapped = mapped.filter((m) => m.area === area);
+      if (cargo) mapped = mapped.filter((m) => m.cargo === cargo);
+      if (search) {
+        const s = search.toLowerCase();
+        mapped = mapped.filter((m) => `${m.empleado} ${m.dui} ${m.curso} ${m.codigo}`.toLowerCase().includes(s));
+      }
+      return mapped;
+    }
+
+    // intentos
+    let q = supabaseAdmin
+      .from("quiz_attempts")
+      .select("intento_num, score, aprobado, started_at, finished_at, employees(dui, nombre, area, cargo), quizzes(course_id, courses(id, nombre))")
+      .limit(limit)
+      .order("started_at", { ascending: false });
+    if (typeof aprobado === "boolean") q = q.eq("aprobado", aprobado);
+    if (desde) q = q.gte("started_at", desde);
+    if (hasta) q = q.lte("started_at", hasta);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    let mapped = (rows ?? []).map((r: any) => ({
+      dui: r.employees?.dui, empleado: r.employees?.nombre,
+      area: r.employees?.area, cargo: r.employees?.cargo,
+      curso: r.quizzes?.courses?.nombre,
+      intento: r.intento_num, score: r.score, aprobado: r.aprobado,
+      iniciado: r.started_at, finalizado: r.finished_at,
+    }));
+    if (curso_id) mapped = mapped.filter((m: any) => (rows ?? []).find((r: any) => r.quizzes?.courses?.id === curso_id && r.employees?.dui === m.dui));
+    if (area) mapped = mapped.filter((m) => m.area === area);
+    if (cargo) mapped = mapped.filter((m) => m.cargo === cargo);
+    if (search) {
+      const s = search.toLowerCase();
+      mapped = mapped.filter((m) => `${m.empleado} ${m.dui} ${m.curso}`.toLowerCase().includes(s));
+    }
+    return mapped;
+  });
+
+export const listSavedReports = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireRrhh(context.userId);
+    const { data, error } = await supabaseAdmin
+      .from("saved_reports")
+      .select("*")
+      .order("updated_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
+export const saveReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      id: z.string().uuid().optional(),
+      nombre: z.string().min(1).max(120),
+      entidad: z.enum(["empleados", "asignaciones", "certificados", "intentos"]),
+      config: z.record(z.string(), z.any()),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    if (data.id) {
+      const { error } = await supabaseAdmin
+        .from("saved_reports")
+        .update({ nombre: data.nombre, entidad: data.entidad, config: data.config, updated_at: new Date().toISOString() })
+        .eq("id", data.id);
+      if (error) throw new Error(error.message);
+      return { id: data.id };
+    }
+    const { data: ins, error } = await supabaseAdmin
+      .from("saved_reports")
+      .insert({ nombre: data.nombre, entidad: data.entidad, config: data.config, owner_user_id: context.userId })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: ins.id };
+  });
+
+export const deleteSavedReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    const { error } = await supabaseAdmin.from("saved_reports").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
