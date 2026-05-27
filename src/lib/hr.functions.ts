@@ -975,7 +975,9 @@ export const updateSystemUser = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireSuperAdmin(context.userId);
-    const patch: Record<string, unknown> = {};
+    const patch: {
+      nombre?: string; email?: string | null; area?: string | null; cargo?: string | null;
+    } = {};
     if (data.nombre !== undefined) patch.nombre = data.nombre;
     if (data.email !== undefined) patch.email = data.email || null;
     if (data.area !== undefined) patch.area = data.area || null;
