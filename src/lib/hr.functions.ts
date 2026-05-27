@@ -238,12 +238,13 @@ export const listPipelineRequisitions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<PipelineRequisition[]> => {
     await requireRrhh(context.userId);
-    // Incluye plazas cubiertas + cualquier requisición que aún no esté cerrada
-    // (es decir, status != 'cerrada'). Así se ven también las abiertas/en proceso.
+    // Traemos todas las requisiciones del Pipeline (sin filtrar por status en
+    // el servidor para no depender del enum exacto del otro proyecto) y
+    // descartamos en memoria las que están cerradas/archivadas/canceladas.
     const url =
       `${PIPELINE_URL}/rest/v1/requisitions` +
       `?select=id,code,position_title,management_area,required_trainings,status,departments(name)` +
-      `&status=neq.cerrada&order=updated_at.desc&limit=200`;
+      `&order=updated_at.desc&limit=200`;
     const res = await fetch(url, {
       headers: { apikey: PIPELINE_ANON, Authorization: `Bearer ${PIPELINE_ANON}` },
     });
@@ -260,16 +261,20 @@ export const listPipelineRequisitions = createServerFn({ method: "GET" })
       position_title: string;
       management_area: string | null;
       required_trainings: string[] | null;
+      status: string | null;
       departments: { name: string } | null;
     }>;
-    return rows.map((r) => ({
-      id: r.id,
-      code: r.code,
-      position_title: r.position_title,
-      management_area: r.management_area,
-      department: r.departments?.name ?? null,
-      required_trainings: r.required_trainings ?? [],
-    }));
+    const EXCLUDED = new Set(["cerrada", "closed", "archivada", "archived", "cancelada", "cancelled", "canceled"]);
+    return rows
+      .filter((r) => !r.status || !EXCLUDED.has(r.status.toLowerCase()))
+      .map((r) => ({
+        id: r.id,
+        code: r.code,
+        position_title: r.position_title,
+        management_area: r.management_area,
+        department: r.departments?.name ?? null,
+        required_trainings: r.required_trainings ?? [],
+      }));
   });
 
 
