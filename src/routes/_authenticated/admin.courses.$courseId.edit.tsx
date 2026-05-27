@@ -289,7 +289,7 @@ function EditCourse() {
             </div>
             {editing.tipo === "texto" ? (
               <div className="space-y-1.5">
-                <Label>Contenido (usado por la IA para generar preguntas)</Label>
+                <Label>Contenido</Label>
                 <Textarea rows={8} value={editing.contenido ?? ""} onChange={(e) => setEditing({ ...editing, contenido: e.target.value })} />
               </div>
             ) : (
@@ -307,6 +307,174 @@ function EditCourse() {
           </CardContent>
         </Card>
       )}
+
+      {/* ============ EVALUACIONES ============ */}
+      <Card className="border-border/60">
+        <CardContent className="space-y-4 p-6">
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-lg font-semibold flex items-center gap-2">
+              <ListChecks className="h-5 w-5 text-primary" /> Evaluaciones
+            </h3>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setQuizEditor({
+                    course_id: courseId,
+                    lesson_id: null,
+                    nombre: "Evaluación final",
+                    es_final: true,
+                    posicion: 9999,
+                    umbral: 80,
+                    intentos_permitidos: 3,
+                    preguntas: [emptyQuestion()],
+                  })
+                }
+              >
+                <Plus className="mr-1 h-4 w-4" /> Quiz final
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!lessons.length}
+                onClick={() => {
+                  const first = lessons[0];
+                  setQuizEditor({
+                    course_id: courseId,
+                    lesson_id: first?.id ?? null,
+                    nombre: `Evaluación: ${first?.titulo ?? "lección"}`,
+                    es_final: false,
+                    posicion: 1,
+                    umbral: 80,
+                    intentos_permitidos: 3,
+                    preguntas: [emptyQuestion()],
+                  });
+                }}
+              >
+                <Plus className="mr-1 h-4 w-4" /> Quiz por lección
+              </Button>
+            </div>
+          </div>
+          {quizzes.length === 0 && (
+            <p className="py-6 text-center text-sm text-muted-foreground">Aún no hay evaluaciones.</p>
+          )}
+          {quizzes.map((q) => (
+            <Card key={q.id} className="border-border/60 bg-muted/30">
+              <CardContent className="flex items-center justify-between p-3">
+                <div>
+                  <p className="font-medium">{q.nombre}</p>
+                  <div className="flex gap-2 text-xs text-muted-foreground mt-1">
+                    <Badge variant="outline">{q.es_final ? "Final" : "Por lección"}</Badge>
+                    <Badge variant="secondary">{(q.preguntas?.length ?? 0)} pregunta(s)</Badge>
+                    <span>Umbral {q.umbral}%</span>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() =>
+                      setQuizEditor({
+                        id: q.id,
+                        course_id: courseId,
+                        lesson_id: q.lesson_id ?? null,
+                        nombre: q.nombre,
+                        es_final: !!q.es_final,
+                        posicion: q.posicion ?? 9999,
+                        umbral: q.umbral ?? 80,
+                        intentos_permitidos: q.intentos_permitidos ?? 3,
+                        preguntas: (q.preguntas ?? []) as ManualQuestion[],
+                      })
+                    }
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => { if (confirm("¿Eliminar evaluación?")) removeQuiz.mutate(q.id); }}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </CardContent>
+      </Card>
+
+      {quizEditor && (() => {
+        const qErrors = validateQuestions(quizEditor.preguntas);
+        if (!quizEditor.preguntas.length) qErrors.unshift("Agrega al menos una pregunta.");
+        if (!quizEditor.nombre.trim()) qErrors.unshift("La evaluación necesita un nombre.");
+        return (
+          <Card className="border-primary/40 ring-2 ring-primary/20">
+            <CardContent className="space-y-4 p-6">
+              <div className="flex items-center justify-between">
+                <h3 className="font-display text-lg font-semibold">
+                  {quizEditor.id ? "Editar evaluación" : "Nueva evaluación"}
+                </h3>
+                <Button size="icon" variant="ghost" onClick={() => setQuizEditor(null)}><X className="h-4 w-4" /></Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Nombre</Label>
+                  <Input value={quizEditor.nombre} onChange={(e) => setQuizEditor({ ...quizEditor, nombre: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Ubicación</Label>
+                  <Select
+                    value={quizEditor.es_final ? "final" : (quizEditor.lesson_id ?? "")}
+                    onValueChange={(v) => {
+                      if (v === "final") {
+                        setQuizEditor({ ...quizEditor, es_final: true, lesson_id: null, posicion: 9999 });
+                      } else {
+                        const lesson = lessons.find((l) => l.id === v);
+                        const idx = lessons.findIndex((l) => l.id === v);
+                        setQuizEditor({
+                          ...quizEditor,
+                          es_final: false,
+                          lesson_id: v,
+                          posicion: idx + 1,
+                          nombre: quizEditor.nombre || `Evaluación: ${lesson?.titulo ?? ""}`,
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecciona ubicación" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="final">Al final del curso</SelectItem>
+                      {lessons.map((l) => (
+                        <SelectItem key={l.id} value={l.id!}>Después de: {l.titulo}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Umbral (%)</Label>
+                  <Input type="number" min={50} max={100} value={quizEditor.umbral} onChange={(e) => setQuizEditor({ ...quizEditor, umbral: +e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Intentos permitidos</Label>
+                  <Input type="number" min={1} max={10} value={quizEditor.intentos_permitidos} onChange={(e) => setQuizEditor({ ...quizEditor, intentos_permitidos: +e.target.value })} />
+                </div>
+              </div>
+              <QuestionsEditor
+                value={quizEditor.preguntas}
+                onChange={(preguntas) => setQuizEditor({ ...quizEditor, preguntas })}
+              />
+              <QuestionErrors errors={qErrors} />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setQuizEditor(null)}>Cancelar</Button>
+                <Button onClick={() => saveQuiz.mutate()} disabled={saveQuiz.isPending || qErrors.length > 0}>
+                  {saveQuiz.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />} Guardar evaluación
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
     </div>
   );
 }
