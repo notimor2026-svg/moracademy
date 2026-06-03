@@ -26,17 +26,44 @@ export const getCourseDetail = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ course_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const [{ data: course }, { data: lessons }, { data: quizzes }, { data: emp }] =
-      await Promise.all([
-        supabase.from("courses").select("*").eq("id", data.course_id).single(),
-        supabase
-          .from("course_lessons")
-          .select("*")
-          .eq("course_id", data.course_id)
-          .order("orden"),
-        supabase.from("quizzes").select("*").eq("course_id", data.course_id).order("posicion"),
-        supabase.from("employees").select("id").eq("auth_user_id", userId).maybeSingle(),
-      ]);
+
+    const { data: emp } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const isRrhh = (roles ?? []).some(
+      (r: any) => r.role === "rrhh" || r.role === "super_admin",
+    );
+
+    // Solo rrhh, el empleado asignado, o su jefe directo pueden ver el curso.
+    if (!isRrhh) {
+      if (!emp) throw new Error("No tienes acceso a este curso.");
+      const { data: assigns } = await supabaseAdmin
+        .from("course_assignments")
+        .select("employee_id, employees!inner(jefe_id)")
+        .eq("course_id", data.course_id);
+      const allowed = (assigns ?? []).some((a: any) => {
+        if (a.employee_id === emp.id) return true;
+        if (a.employees?.jefe_id && a.employees.jefe_id === emp.id) return true;
+        return false;
+      });
+      if (!allowed) throw new Error("No tienes acceso a este curso.");
+    }
+
+    const [{ data: course }, { data: lessons }, { data: quizzes }] = await Promise.all([
+      supabase.from("courses").select("*").eq("id", data.course_id).single(),
+      supabase
+        .from("course_lessons")
+        .select("*")
+        .eq("course_id", data.course_id)
+        .order("orden"),
+      supabase.from("quizzes").select("*").eq("course_id", data.course_id).order("posicion"),
+    ]);
     let progress: Record<string, boolean> = {};
     if (emp) {
       const { data: lp } = await supabase
