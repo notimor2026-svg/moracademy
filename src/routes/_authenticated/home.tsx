@@ -28,13 +28,31 @@ const estadoStyles: Record<string, { label: string; cls: string; icon: typeof Cl
 function Home() {
   const fn = useServerFn(listMyAssignments);
   const fnGame = useServerFn(gamificationOverview);
+  const fnOpen = useServerFn(listOpenCourses);
+  const fnEnroll = useServerFn(enrollOpenCourse);
+  const qc = useQueryClient();
+  const nav = useNavigate();
   const { data, isLoading } = useQuery({ queryKey: ["my-assignments"], queryFn: () => fn() });
   const game = useQuery({ queryKey: ["gamification"], queryFn: () => fnGame() });
+  const openCourses = useQuery({ queryKey: ["open-courses"], queryFn: () => fnOpen() });
+
+  const enroll = useMutation({
+    mutationFn: (course_id: string) => fnEnroll({ data: { course_id } }),
+    onSuccess: (_res, course_id) => {
+      toast.success("Te inscribiste al curso");
+      qc.invalidateQueries({ queryKey: ["my-assignments"] });
+      qc.invalidateQueries({ queryKey: ["open-courses"] });
+      nav({ to: "/courses/$courseId", params: { courseId: course_id } });
+    },
+    onError: (e: any) => toast.error(e.message ?? "No se pudo inscribir"),
+  });
 
   const assignments = data?.assignments ?? [];
   const induction = assignments.filter((a) => a.origen === "induccion");
   const ongoing = assignments.filter((a) => a.origen !== "induccion");
   const aprobados = assignments.filter((a) => a.estado === "aprobado").length;
+  const open = openCourses.data ?? [];
+
 
   const myBadges = game.data?.myBadges ?? [];
   const allBadges = game.data?.allBadges ?? [];
