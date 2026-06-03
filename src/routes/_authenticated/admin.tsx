@@ -2,6 +2,7 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getMe } from "@/lib/hr.functions";
+import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShieldAlert, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,8 +11,14 @@ export const Route = createFileRoute("/_authenticated/admin")({ component: Admin
 
 function AdminLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { session } = useAuth();
   const me = useServerFn(getMe);
-  const meQ = useQuery({ queryKey: ["me-admin-gate"], queryFn: () => me(), staleTime: 60_000 });
+  const meQ = useQuery({
+    queryKey: ["me-admin-gate", session?.user.id],
+    queryFn: () => me(),
+    enabled: !!session?.access_token,
+    staleTime: 60_000,
+  });
 
   const tabs = [
     { to: "/admin", label: "Resumen" },
