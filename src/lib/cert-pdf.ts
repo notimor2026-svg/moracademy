@@ -10,11 +10,10 @@ type Cert = {
 };
 
 const NAVY: [number, number, number] = [27, 42, 75];
-const NAVY_SOFT: [number, number, number] = [40, 58, 95];
 const GOLD: [number, number, number] = [184, 142, 56];
-const CREAM: [number, number, number] = [245, 241, 232];
-const INK: [number, number, number] = [30, 35, 50];
-const MUTED: [number, number, number] = [110, 115, 130];
+const CREAM: [number, number, number] = [250, 247, 240];
+const INK: [number, number, number] = [40, 45, 60];
+const MUTED: [number, number, number] = [120, 122, 135];
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -26,234 +25,142 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-// Crop a region of an image and return a PNG dataURL
-function cropImage(
-  img: HTMLImageElement,
-  sx: number, sy: number, sw: number, sh: number,
-): string {
-  const c = document.createElement("canvas");
-  c.width = sw; c.height = sh;
-  const ctx = c.getContext("2d")!;
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-  return c.toDataURL("image/png");
-}
-
 export async function downloadCertificate(cert: Cert) {
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
-  const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
+  const W = doc.internal.pageSize.getWidth();   // 792
+  const H = doc.internal.pageSize.getHeight();  // 612
 
-  // Fondo crema
+  // Fondo
   doc.setFillColor(...CREAM);
   doc.rect(0, 0, W, H, "F");
 
-  // Triángulos decorativos navy (esquinas sup-izq e inf-der)
-  doc.setFillColor(...NAVY);
-  doc.triangle(0, 0, 170, 0, 0, 170, "F");
-  doc.triangle(W, H, W - 170, H, W, H - 170, "F");
-
-  // Marco doble
+  // Marco doble navy + línea dorada interior
   doc.setDrawColor(...NAVY);
   doc.setLineWidth(2);
-  doc.rect(22, 22, W - 44, H - 44);
+  doc.rect(24, 24, W - 48, H - 48);
+  doc.setDrawColor(...GOLD);
   doc.setLineWidth(0.6);
-  doc.rect(30, 30, W - 60, H - 60);
+  doc.rect(34, 34, W - 68, H - 68);
 
-  // Cargar logo (vertical: shield arriba, wordmark abajo)
+  // Logo centrado arriba
   let logoImg: HTMLImageElement | null = null;
   try { logoImg = await loadImage(logoUrl); } catch { /* ignore */ }
 
-  // Acentos dorados en esquinas (L delgadas) — sup-der e inf-izq
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.8);
-  const accLen = 36;
-  const accOff = 40;
-  doc.line(W - accOff - accLen, accOff, W - accOff, accOff);
-  doc.line(W - accOff, accOff, W - accOff, accOff + accLen);
-  doc.line(accOff, H - accOff, accOff + accLen, H - accOff);
-  doc.line(accOff, H - accOff - accLen, accOff, H - accOff);
-
-  // Marca de agua del escudo a la derecha
+  const logoTop = 56;
+  let headerBottom = logoTop;
   if (logoImg) {
-    try {
-      const shieldCrop = cropImage(logoImg, 0, 0, logoImg.width, Math.floor(logoImg.height * 0.58));
-      const ratio = logoImg.width / Math.floor(logoImg.height * 0.58);
-      const wmH = 380;
-      const wmW = wmH * ratio;
-      const gState = (doc as any).GState ? new (doc as any).GState({ opacity: 0.07 }) : null;
-      if (gState) (doc as any).setGState(gState);
-      doc.addImage(shieldCrop, "PNG", W - wmW * 0.72, H / 2 - wmH / 2, wmW, wmH);
-      if (gState) (doc as any).setGState(new (doc as any).GState({ opacity: 1 }));
-    } catch { /* ignore */ }
-  }
-
-  // Encabezado: logo COMPLETO centrado (escudo + wordmark de la marca)
-  if (logoImg) {
-    try {
-      const logoRatio = logoImg.width / logoImg.height;
-      const logoW = W * 0.20;
-      const logoH = logoW / logoRatio;
-      doc.addImage(logoImg, "PNG", (W - logoW) / 2, 48, logoW, logoH);
-    } catch {
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...NAVY);
-      doc.setFontSize(28);
-      doc.text("MOR ACADEMY", W / 2, 100, { align: "center" });
-    }
+    const ratio = logoImg.width / logoImg.height;
+    const logoH = 64;
+    const logoW = logoH * ratio;
+    doc.addImage(logoImg, "PNG", (W - logoW) / 2, logoTop, logoW, logoH);
+    headerBottom = logoTop + logoH;
   } else {
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...NAVY);
-    doc.setFontSize(28);
-    doc.text("MOR ACADEMY", W / 2, 100, { align: "center" });
+    doc.setFontSize(24);
+    doc.text("MOR ACADEMY", W / 2, logoTop + 30, { align: "center" });
+    headerBottom = logoTop + 40;
   }
 
-  // CERTIFICADO
+  // Título principal
+  const titleY = headerBottom + 60;
   doc.setFont("times", "normal");
   doc.setTextColor(...NAVY);
-  doc.setFontSize(54);
-  doc.text("CERTIFICADO", W / 2, 200, { align: "center", charSpace: 6 });
+  doc.setFontSize(42);
+  doc.text("CERTIFICADO DE APROBACIÓN", W / 2, titleY, { align: "center", charSpace: 3 });
 
-  // DE APROBACIÓN con guiones dorados
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...GOLD);
-  doc.setFontSize(13);
-  const subtitle = "DE APROBACIÓN";
-  doc.text(subtitle, W / 2, 228, { align: "center", charSpace: 8 });
-  const subW = doc.getTextWidth(subtitle) + 8 * (subtitle.length - 1);
+  // Línea dorada decorativa bajo el título
   doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.8);
-  const dashY = 224;
-  doc.line(W / 2 - subW / 2 - 40, dashY, W / 2 - subW / 2 - 10, dashY);
-  doc.line(W / 2 + subW / 2 + 10, dashY, W / 2 + subW / 2 + 40, dashY);
+  doc.setLineWidth(1);
+  doc.line(W / 2 - 60, titleY + 14, W / 2 + 60, titleY + 14);
 
-  // "Se otorga..."
+  // "Se otorga el presente certificado a"
+  const introY = titleY + 50;
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(...INK);
-  doc.setFontSize(13);
-  doc.text("Se otorga el presente certificado a", W / 2, 265, { align: "center" });
+  doc.setTextColor(...MUTED);
+  doc.setFontSize(12);
+  doc.text("Se otorga el presente certificado a", W / 2, introY, { align: "center" });
 
-  // Nombre
+  // Nombre del participante
+  const nameY = introY + 40;
   doc.setFont("times", "bold");
   doc.setTextColor(...NAVY);
-  doc.setFontSize(38);
-  doc.text(cert.employees?.nombre ?? "—", W / 2, 310, { align: "center" });
+  doc.setFontSize(34);
+  doc.text(cert.employees?.nombre ?? "—", W / 2, nameY, { align: "center" });
 
-  // Línea decorativa bajo el nombre
-  doc.setDrawColor(...NAVY);
-  doc.setLineWidth(0.8);
-  doc.line(W * 0.2, 332, W * 0.8, 332);
-
-  // "por completar..."
+  // "por haber completado satisfactoriamente la capacitación"
+  const byY = nameY + 36;
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...INK);
-  doc.setFontSize(13);
-  doc.text("por completar satisfactoriamente la capacitación", W / 2, 365, { align: "center" });
+  doc.setFontSize(12);
+  doc.text("por haber completado satisfactoriamente la capacitación", W / 2, byY, { align: "center" });
 
-  // Nombre del curso — auto-ajuste y wrap a 2 líneas
+  // Nombre del curso — auto-ajuste a 1 o 2 líneas
   const courseName = cert.courses?.nombre ?? "—";
-  doc.setFont("times", "bold");
+  doc.setFont("times", "bolditalic");
   doc.setTextColor(...NAVY);
-  const maxWidth = W * 0.7;
-  let fontSize = 26;
+  const maxW = W * 0.75;
+  let fSize = 24;
   let lines: string[] = [courseName];
-  while (fontSize >= 14) {
-    doc.setFontSize(fontSize);
-    lines = doc.splitTextToSize(courseName, maxWidth);
-    if (lines.length <= 2 && lines.every((l) => doc.getTextWidth(l) <= maxWidth)) break;
-    fontSize -= 2;
+  while (fSize >= 14) {
+    doc.setFontSize(fSize);
+    lines = doc.splitTextToSize(courseName, maxW);
+    if (lines.length <= 2 && lines.every((l) => doc.getTextWidth(l) <= maxW)) break;
+    fSize -= 2;
   }
-  const lineH = fontSize * 1.15;
-  const startY = lines.length === 1 ? 395 : 387;
-  lines.slice(0, 2).forEach((l, i) => doc.text(l, W / 2, startY + i * lineH, { align: "center" }));
+  const lineH = fSize * 1.2;
+  const courseStartY = byY + 36;
+  lines.slice(0, 2).forEach((l, i) =>
+    doc.text(l, W / 2, courseStartY + i * lineH, { align: "center" })
+  );
+  const courseEndY = courseStartY + (Math.min(lines.length, 2) - 1) * lineH;
 
-  // Línea inferior
-  const afterCourseY = startY + (Math.min(lines.length, 2) - 1) * lineH + 18;
-  doc.setDrawColor(...NAVY);
-  doc.setLineWidth(0.8);
-  doc.line(W * 0.2, afterCourseY, W * 0.8, afterCourseY);
-
-  // Tres columnas: Nota / Fecha / Horas
-  const metaY = afterCourseY + 28;
-  const colXs = [W * 0.28, W * 0.5, W * 0.72];
+  // Bloque de metadatos: tres columnas separadas, bien lejos del curso
+  const metaTop = Math.max(courseEndY + 50, H - 170);
+  const colXs = [W * 0.25, W * 0.5, W * 0.75];
+  const labels = ["NOTA OBTENIDA", "FECHA DE EMISIÓN", "HORAS DE FORMACIÓN"];
   const fecha = new Date(cert.fecha_emision).toLocaleDateString("es-SV", {
     day: "numeric", month: "long", year: "numeric",
   });
   const horas = cert.courses?.duracion_min
     ? `${Math.max(1, Math.round(cert.courses.duracion_min / 60))} horas`
     : "—";
-  const labels = ["Nota obtenida", "Fecha de emisión", "Horas de formación"];
   const values = [`${cert.nota}%`, fecha, horas];
 
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...MUTED);
-  doc.setFontSize(10);
-  labels.forEach((l, i) => doc.text(l, colXs[i], metaY, { align: "center" }));
-
-  doc.setFont("times", "normal");
-  doc.setTextColor(...NAVY_SOFT);
-  doc.setFontSize(14);
-  values.forEach((v, i) => doc.text(v, colXs[i], metaY + 22, { align: "center" }));
-
-  // Separadores verticales entre columnas
-  doc.setDrawColor(200, 195, 180);
-  doc.setLineWidth(0.5);
-  doc.line((colXs[0] + colXs[1]) / 2, metaY - 8, (colXs[0] + colXs[1]) / 2, metaY + 30);
-  doc.line((colXs[1] + colXs[2]) / 2, metaY - 8, (colXs[1] + colXs[2]) / 2, metaY + 30);
-
-  // Sello circular en la parte inferior
-  const sealCx = W / 2;
-  const sealCy = metaY + 90;
-  const sealR = 38;
-  // Anillo exterior dorado
-  doc.setFillColor(...GOLD);
-  doc.circle(sealCx, sealCy, sealR, "F");
-  // Disco interior navy
-  doc.setFillColor(...NAVY);
-  doc.circle(sealCx, sealCy, sealR - 5, "F");
-  // Texto curvo "MOR ACADEMY" arriba (aproximación: arco con letras)
+  // Etiquetas
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...CREAM);
-  doc.setFontSize(7);
-  const sealText = "MOR ACADEMY";
-  const arcR = sealR - 11;
-  const totalAngle = Math.PI * 0.7; // arco superior
-  const startAngle = Math.PI + (Math.PI - totalAngle) / 2;
-  const step = totalAngle / (sealText.length - 1);
-  for (let i = 0; i < sealText.length; i++) {
-    const a = startAngle + step * i;
-    const x = sealCx + arcR * Math.cos(a);
-    const y = sealCy + arcR * Math.sin(a);
-    const rot = (a + Math.PI / 2) * (180 / Math.PI);
-    doc.text(sealText[i], x, y, { angle: -rot + 180, align: "center" } as any);
-  }
-  // Escudo dentro del sello
-  if (logoImg) {
-    try {
-      const shieldH = logoImg.height * 0.58;
-      const shieldCrop = cropImage(logoImg, 0, 0, logoImg.width, Math.floor(shieldH));
-      const sRatio = logoImg.width / shieldH;
-      const sealShieldH = sealR * 0.95;
-      const sealShieldW = sealShieldH * sRatio;
-      doc.addImage(
-        shieldCrop, "PNG",
-        sealCx - sealShieldW / 2, sealCy - sealShieldH / 2 + 4,
-        sealShieldW, sealShieldH,
-      );
-    } catch { /* ignore */ }
-  }
-
-  // Pie: código + verificación
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(...INK);
-  doc.text(`Código de verificación: ${cert.codigo}`, W / 2, H - 48, { align: "center" });
-  doc.setTextColor(...MUTED);
+  doc.setTextColor(...GOLD);
   doc.setFontSize(9);
+  labels.forEach((l, i) => doc.text(l, colXs[i], metaTop, { align: "center", charSpace: 1 }));
+
+  // Valores
+  doc.setFont("times", "normal");
+  doc.setTextColor(...NAVY);
+  doc.setFontSize(15);
+  values.forEach((v, i) => doc.text(v, colXs[i], metaTop + 22, { align: "center" }));
+
+  // Separadores verticales finos
+  doc.setDrawColor(210, 205, 190);
+  doc.setLineWidth(0.4);
+  doc.line((colXs[0] + colXs[1]) / 2, metaTop - 6, (colXs[0] + colXs[1]) / 2, metaTop + 28);
+  doc.line((colXs[1] + colXs[2]) / 2, metaTop - 6, (colXs[1] + colXs[2]) / 2, metaTop + 28);
+
+  // Pie: código de verificación
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.5);
+  doc.line(W / 2 - 140, H - 70, W / 2 + 140, H - 70);
+
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...NAVY);
+  doc.setFontSize(10);
+  doc.text(`Código de verificación: ${cert.codigo}`, W / 2, H - 56, { align: "center" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...MUTED);
+  doc.setFontSize(8);
   doc.text(
     "Verifica la autenticidad de este certificado en la plataforma MOR ACADEMY",
-    W / 2,
-    H - 34,
-    { align: "center" },
+    W / 2, H - 44, { align: "center" }
   );
 
   doc.save(`certificado-${cert.codigo}.pdf`);
