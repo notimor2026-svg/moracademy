@@ -326,6 +326,7 @@ export const createCourse = createServerFn({ method: "POST" })
         tipo: z.enum(["induccion", "constante"]).default("constante"),
         nota_minima: z.number().min(50).max(100).default(80),
         intentos_max: z.number().min(1).max(10).default(3),
+        abierto_a_todos: z.boolean().default(false),
         lecciones: z
           .array(
             z.object({
@@ -350,12 +351,14 @@ export const createCourse = createServerFn({ method: "POST" })
         tipo: data.tipo,
         nota_minima: data.nota_minima,
         intentos_max: data.intentos_max,
+        abierto_a_todos: data.abierto_a_todos,
         estado: "activa",
         created_by: context.userId,
       })
       .select()
       .single();
     if (error) throw new Error(error.message);
+
     const lessonsToInsert = data.lecciones.map((l, idx) => ({
       course_id: course.id,
       titulo: l.titulo,
