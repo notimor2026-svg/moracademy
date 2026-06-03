@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { listMyCertificates } from "@/lib/academy.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Award, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,15 +10,10 @@ import { downloadCertificate } from "@/lib/cert-pdf";
 export const Route = createFileRoute("/_authenticated/certificates")({ component: Certs });
 
 function Certs() {
+  const fn = useServerFn(listMyCertificates);
   const { data } = useQuery({
     queryKey: ["my-certs"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("certificates")
-        .select("*, employees(nombre, dui), courses(nombre)")
-        .order("fecha_emision", { ascending: false });
-      return data ?? [];
-    },
+    queryFn: () => fn(),
   });
 
   return (
