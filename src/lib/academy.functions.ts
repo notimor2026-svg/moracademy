@@ -40,20 +40,29 @@ export const getCourseDetail = createServerFn({ method: "GET" })
       (r: any) => r.role === "rrhh" || r.role === "super_admin",
     );
 
-    // Solo rrhh, el empleado asignado, o su jefe directo pueden ver el curso.
+    // Solo rrhh, el empleado asignado, su jefe directo, o cursos abiertos a todos.
     if (!isRrhh) {
       if (!emp) throw new Error("No tienes acceso a este curso.");
-      const { data: assigns } = await supabaseAdmin
-        .from("course_assignments")
-        .select("employee_id, employees!inner(jefe_id)")
-        .eq("course_id", data.course_id);
-      const allowed = (assigns ?? []).some((a: any) => {
-        if (a.employee_id === emp.id) return true;
-        if (a.employees?.jefe_id && a.employees.jefe_id === emp.id) return true;
-        return false;
-      });
-      if (!allowed) throw new Error("No tienes acceso a este curso.");
+      const { data: courseRow } = await supabaseAdmin
+        .from("courses")
+        .select("abierto_a_todos")
+        .eq("id", data.course_id)
+        .maybeSingle();
+      const isOpen = !!courseRow?.abierto_a_todos;
+      if (!isOpen) {
+        const { data: assigns } = await supabaseAdmin
+          .from("course_assignments")
+          .select("employee_id, employees!inner(jefe_id)")
+          .eq("course_id", data.course_id);
+        const allowed = (assigns ?? []).some((a: any) => {
+          if (a.employee_id === emp.id) return true;
+          if (a.employees?.jefe_id && a.employees.jefe_id === emp.id) return true;
+          return false;
+        });
+        if (!allowed) throw new Error("No tienes acceso a este curso.");
+      }
     }
+
 
     const [{ data: course }, { data: lessons }, { data: quizzes }] = await Promise.all([
       supabase.from("courses").select("*").eq("id", data.course_id).single(),
