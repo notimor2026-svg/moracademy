@@ -11,7 +11,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, Trophy, Award, Crown, Sparkles, Loader2 } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, Trophy, Award, Crown, Sparkles, Loader2, Target, Zap, Star, GraduationCap, BadgeCheck, Brain, BookMarked, Medal, Flame, Compass, Rocket, Library, Lightbulb, HeartHandshake } from "lucide-react";
+
+const badgeIcons: Record<string, typeof Award> = {
+  Award, Trophy, Sparkles, Target, Zap, Star, GraduationCap, BadgeCheck, Brain,
+  BookMarked, Medal, Crown, Flame, Compass, BookOpen, Rocket, Library, Lightbulb, HeartHandshake,
+};
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/home")({ component: Home });
@@ -138,9 +143,10 @@ function Home() {
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
               {allBadges.map((b: any) => {
                 const owned = myBadges.some((m: any) => m.badge_id === b.id);
+                const Icon = badgeIcons[b.icono] ?? Award;
                 return (
-                  <div key={b.id} className={`flex flex-col items-center rounded-lg border p-3 text-center transition ${owned ? "border-gold/40 bg-gold/10" : "border-border/60 opacity-40 grayscale"}`}>
-                    <Award className={`mb-1 h-6 w-6 ${owned ? "text-gold-foreground" : "text-muted-foreground"}`} />
+                  <div key={b.id} title={b.descripcion ?? ""} className={`flex flex-col items-center rounded-lg border p-3 text-center transition ${owned ? "border-gold/40 bg-gold/10" : "border-border/60 opacity-40 grayscale"}`}>
+                    <Icon className={`mb-1 h-6 w-6 ${owned ? "text-gold-foreground" : "text-muted-foreground"}`} />
                     <p className="text-xs font-medium leading-tight">{b.nombre}</p>
                   </div>
                 );
