@@ -11,7 +11,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, Trophy, Award, Crown, Sparkles, Loader2 } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, Trophy, Award, Crown, Sparkles, Loader2, Target, Zap, Star, GraduationCap, BadgeCheck, Brain, BookMarked, Medal, Flame, Compass, Rocket, Library, Lightbulb, HeartHandshake } from "lucide-react";
+
+const badgeIcons: Record<string, typeof Award> = {
+  Award, Trophy, Sparkles, Target, Zap, Star, GraduationCap, BadgeCheck, Brain,
+  BookMarked, Medal, Crown, Flame, Compass, BookOpen, Rocket, Library, Lightbulb, HeartHandshake,
+};
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/home")({ component: Home });
