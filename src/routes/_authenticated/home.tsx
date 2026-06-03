@@ -82,6 +82,51 @@ function Home() {
       <Section title="Inducción" empty="No tienes capacitaciones de inducción asignadas." items={induction} loading={isLoading} />
       <Section title="Capacitaciones continuas" empty="No tienes capacitaciones continuas activas." items={ongoing} loading={isLoading} />
 
+      {open.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-end justify-between">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-foreground flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" /> Catálogo abierto
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Cursos opcionales disponibles para tu formación personal.
+              </p>
+            </div>
+            <span className="text-xs text-muted-foreground">{open.length} cursos</span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {open.map((c: any) => (
+              <Card key={c.id} className="overflow-hidden border-border/60 transition-shadow hover:shadow-elevated">
+                <div className="h-2 bg-gradient-hero" />
+                <CardContent className="space-y-4 p-5">
+                  <div>
+                    <h3 className="font-display text-lg font-semibold text-foreground">{c.nombre}</h3>
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.descripcion ?? "Curso abierto."}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{c.duracion_min ?? 30} min · Opcional</span>
+                    <Button
+                      size="sm"
+                      onClick={() => enroll.mutate(c.id)}
+                      disabled={enroll.isPending}
+                    >
+                      {enroll.isPending && enroll.variables === c.id ? (
+                        <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Inscribiendo…</>
+                      ) : (
+                        <>Inscribirme <ArrowRight className="ml-1 h-4 w-4" /></>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+
+
       <section className="grid gap-6 lg:grid-cols-2">
         <Card className="border-border/60">
           <CardContent className="space-y-4 p-6">
