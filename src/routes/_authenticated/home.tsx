@@ -1,14 +1,21 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listMyAssignments, gamificationOverview } from "@/lib/academy.functions";
+import {
+  listMyAssignments,
+  gamificationOverview,
+  listOpenCourses,
+  enrollOpenCourse,
+} from "@/lib/academy.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, Trophy, Award, Crown } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, Trophy, Award, Crown, Sparkles, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/home")({ component: Home });
+
 
 const estadoStyles: Record<string, { label: string; cls: string; icon: typeof Clock }> = {
   pendiente: { label: "Pendiente", cls: "bg-muted text-muted-foreground", icon: Clock },
@@ -21,13 +28,31 @@ const estadoStyles: Record<string, { label: string; cls: string; icon: typeof Cl
 function Home() {
   const fn = useServerFn(listMyAssignments);
   const fnGame = useServerFn(gamificationOverview);
+  const fnOpen = useServerFn(listOpenCourses);
+  const fnEnroll = useServerFn(enrollOpenCourse);
+  const qc = useQueryClient();
+  const nav = useNavigate();
   const { data, isLoading } = useQuery({ queryKey: ["my-assignments"], queryFn: () => fn() });
   const game = useQuery({ queryKey: ["gamification"], queryFn: () => fnGame() });
+  const openCourses = useQuery({ queryKey: ["open-courses"], queryFn: () => fnOpen() });
+
+  const enroll = useMutation({
+    mutationFn: (course_id: string) => fnEnroll({ data: { course_id } }),
+    onSuccess: (_res, course_id) => {
+      toast.success("Te inscribiste al curso");
+      qc.invalidateQueries({ queryKey: ["my-assignments"] });
+      qc.invalidateQueries({ queryKey: ["open-courses"] });
+      nav({ to: "/courses/$courseId", params: { courseId: course_id } });
+    },
+    onError: (e: any) => toast.error(e.message ?? "No se pudo inscribir"),
+  });
 
   const assignments = data?.assignments ?? [];
   const induction = assignments.filter((a) => a.origen === "induccion");
   const ongoing = assignments.filter((a) => a.origen !== "induccion");
   const aprobados = assignments.filter((a) => a.estado === "aprobado").length;
+  const open = openCourses.data ?? [];
+
 
   const myBadges = game.data?.myBadges ?? [];
   const allBadges = game.data?.allBadges ?? [];
@@ -56,6 +81,51 @@ function Home() {
 
       <Section title="Inducción" empty="No tienes capacitaciones de inducción asignadas." items={induction} loading={isLoading} />
       <Section title="Capacitaciones continuas" empty="No tienes capacitaciones continuas activas." items={ongoing} loading={isLoading} />
+
+      {open.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-end justify-between">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-foreground flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" /> Catálogo abierto
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Cursos opcionales disponibles para tu formación personal.
+              </p>
+            </div>
+            <span className="text-xs text-muted-foreground">{open.length} cursos</span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {open.map((c: any) => (
+              <Card key={c.id} className="overflow-hidden border-border/60 transition-shadow hover:shadow-elevated">
+                <div className="h-2 bg-gradient-hero" />
+                <CardContent className="space-y-4 p-5">
+                  <div>
+                    <h3 className="font-display text-lg font-semibold text-foreground">{c.nombre}</h3>
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.descripcion ?? "Curso abierto."}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{c.duracion_min ?? 30} min · Opcional</span>
+                    <Button
+                      size="sm"
+                      onClick={() => enroll.mutate(c.id)}
+                      disabled={enroll.isPending}
+                    >
+                      {enroll.isPending && enroll.variables === c.id ? (
+                        <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Inscribiendo…</>
+                      ) : (
+                        <>Inscribirme <ArrowRight className="ml-1 h-4 w-4" /></>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+
 
       <section className="grid gap-6 lg:grid-cols-2">
         <Card className="border-border/60">

@@ -275,6 +275,7 @@ export type Database = {
       }
       courses: {
         Row: {
+          abierto_a_todos: boolean
           area: string | null
           cargo: string | null
           cover_color: string | null
@@ -294,6 +295,7 @@ export type Database = {
           vigencia_dias: number | null
         }
         Insert: {
+          abierto_a_todos?: boolean
           area?: string | null
           cargo?: string | null
           cover_color?: string | null
@@ -313,6 +315,7 @@ export type Database = {
           vigencia_dias?: number | null
         }
         Update: {
+          abierto_a_todos?: boolean
           area?: string | null
           cargo?: string | null
           cover_color?: string | null

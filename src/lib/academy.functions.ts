@@ -40,20 +40,29 @@ export const getCourseDetail = createServerFn({ method: "GET" })
       (r: any) => r.role === "rrhh" || r.role === "super_admin",
     );
 
-    // Solo rrhh, el empleado asignado, o su jefe directo pueden ver el curso.
+    // Solo rrhh, el empleado asignado, su jefe directo, o cursos abiertos a todos.
     if (!isRrhh) {
       if (!emp) throw new Error("No tienes acceso a este curso.");
-      const { data: assigns } = await supabaseAdmin
-        .from("course_assignments")
-        .select("employee_id, employees!inner(jefe_id)")
-        .eq("course_id", data.course_id);
-      const allowed = (assigns ?? []).some((a: any) => {
-        if (a.employee_id === emp.id) return true;
-        if (a.employees?.jefe_id && a.employees.jefe_id === emp.id) return true;
-        return false;
-      });
-      if (!allowed) throw new Error("No tienes acceso a este curso.");
+      const { data: courseRow } = await supabaseAdmin
+        .from("courses")
+        .select("abierto_a_todos")
+        .eq("id", data.course_id)
+        .maybeSingle();
+      const isOpen = !!courseRow?.abierto_a_todos;
+      if (!isOpen) {
+        const { data: assigns } = await supabaseAdmin
+          .from("course_assignments")
+          .select("employee_id, employees!inner(jefe_id)")
+          .eq("course_id", data.course_id);
+        const allowed = (assigns ?? []).some((a: any) => {
+          if (a.employee_id === emp.id) return true;
+          if (a.employees?.jefe_id && a.employees.jefe_id === emp.id) return true;
+          return false;
+        });
+        if (!allowed) throw new Error("No tienes acceso a este curso.");
+      }
     }
+
 
     const [{ data: course }, { data: lessons }, { data: quizzes }] = await Promise.all([
       supabase.from("courses").select("*").eq("id", data.course_id).single(),
@@ -326,6 +335,7 @@ export const createCourse = createServerFn({ method: "POST" })
         tipo: z.enum(["induccion", "constante"]).default("constante"),
         nota_minima: z.number().min(50).max(100).default(80),
         intentos_max: z.number().min(1).max(10).default(3),
+        abierto_a_todos: z.boolean().default(false),
         lecciones: z
           .array(
             z.object({
@@ -350,12 +360,14 @@ export const createCourse = createServerFn({ method: "POST" })
         tipo: data.tipo,
         nota_minima: data.nota_minima,
         intentos_max: data.intentos_max,
+        abierto_a_todos: data.abierto_a_todos,
         estado: "activa",
         created_by: context.userId,
       })
       .select()
       .single();
     if (error) throw new Error(error.message);
+
     const lessonsToInsert = data.lecciones.map((l, idx) => ({
       course_id: course.id,
       titulo: l.titulo,
@@ -480,6 +492,74 @@ export const deleteQuiz = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const listOpenCourses = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { userId } = context;
+    const { data: emp } = await supabaseAdmin
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    const { data: open } = await supabaseAdmin
+      .from("courses")
+      .select("id, nombre, descripcion, duracion_min, tipo")
+      .eq("abierto_a_todos", true)
+      .eq("estado", "activa")
+      .order("created_at", { ascending: false });
+    let assignedIds = new Set<string>();
+    if (emp) {
+      const { data: assigns } = await supabaseAdmin
+        .from("course_assignments")
+        .select("course_id")
+        .eq("employee_id", emp.id);
+      assignedIds = new Set((assigns ?? []).map((a) => a.course_id));
+    }
+    return (open ?? []).filter((c) => !assignedIds.has(c.id));
+  });
+
+export const enrollOpenCourse = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ course_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { userId } = context;
+    const { data: emp } = await supabaseAdmin
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    if (!emp) throw new Error("No se encontró tu perfil de empleado.");
+    const { data: course } = await supabaseAdmin
+      .from("courses")
+      .select("id, abierto_a_todos, estado")
+      .eq("id", data.course_id)
+      .maybeSingle();
+    if (!course || !course.abierto_a_todos || course.estado !== "activa") {
+      throw new Error("Este curso no está disponible para auto-inscripción.");
+    }
+    const { data: existing } = await supabaseAdmin
+      .from("course_assignments")
+      .select("id")
+      .eq("course_id", data.course_id)
+      .eq("employee_id", emp.id)
+      .maybeSingle();
+    if (existing) return { assignment_id: existing.id, already: true };
+    const { data: created, error } = await supabaseAdmin
+      .from("course_assignments")
+      .insert({
+        course_id: data.course_id,
+        employee_id: emp.id,
+        origen: "auto_inscripcion",
+        estado: "pendiente",
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { assignment_id: created.id, already: false };
+  });
+
+
 
 
 export const listMyCertificates = createServerFn({ method: "GET" })
