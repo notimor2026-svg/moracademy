@@ -482,6 +482,24 @@ export const deleteQuiz = createServerFn({ method: "POST" })
   });
 
 
+export const listMyCertificates = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: emp } = await supabase
+      .from("employees")
+      .select("id, nombre, dui")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    if (!emp) return [];
+    const { data } = await supabase
+      .from("certificates")
+      .select("*, courses(nombre)")
+      .eq("employee_id", emp.id)
+      .order("fecha_emision", { ascending: false });
+    return (data ?? []).map((c) => ({ ...c, employees: { nombre: emp.nombre, dui: emp.dui } }));
+  });
+
 export const teamOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
