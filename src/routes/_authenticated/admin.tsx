@@ -18,6 +18,8 @@ function AdminLayout() {
     queryFn: () => me(),
     enabled: !!session?.access_token,
     staleTime: 60_000,
+    retry: false,
+    throwOnError: false,
   });
 
   const tabs = [
