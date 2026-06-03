@@ -1,14 +1,21 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listMyAssignments, gamificationOverview } from "@/lib/academy.functions";
+import {
+  listMyAssignments,
+  gamificationOverview,
+  listOpenCourses,
+  enrollOpenCourse,
+} from "@/lib/academy.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, Trophy, Award, Crown } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, Trophy, Award, Crown, Sparkles, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/home")({ component: Home });
+
 
 const estadoStyles: Record<string, { label: string; cls: string; icon: typeof Clock }> = {
   pendiente: { label: "Pendiente", cls: "bg-muted text-muted-foreground", icon: Clock },
