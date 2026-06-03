@@ -574,7 +574,7 @@ export const listMyCertificates = createServerFn({ method: "GET" })
     if (!emp) return [];
     const { data } = await supabase
       .from("certificates")
-      .select("*, courses(nombre)")
+      .select("*, courses(nombre, duracion_min)")
       .eq("employee_id", emp.id)
       .order("fecha_emision", { ascending: false });
     return (data ?? []).map((c) => ({ ...c, employees: { nombre: emp.nombre, dui: emp.dui } }));
