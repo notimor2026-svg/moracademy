@@ -493,6 +493,74 @@ export const deleteQuiz = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const listOpenCourses = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { userId } = context;
+    const { data: emp } = await supabaseAdmin
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    const { data: open } = await supabaseAdmin
+      .from("courses")
+      .select("id, nombre, descripcion, duracion_min, tipo")
+      .eq("abierto_a_todos", true)
+      .eq("estado", "activa")
+      .order("created_at", { ascending: false });
+    let assignedIds = new Set<string>();
+    if (emp) {
+      const { data: assigns } = await supabaseAdmin
+        .from("course_assignments")
+        .select("course_id")
+        .eq("employee_id", emp.id);
+      assignedIds = new Set((assigns ?? []).map((a) => a.course_id));
+    }
+    return (open ?? []).filter((c) => !assignedIds.has(c.id));
+  });
+
+export const enrollOpenCourse = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ course_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { userId } = context;
+    const { data: emp } = await supabaseAdmin
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+    if (!emp) throw new Error("No se encontró tu perfil de empleado.");
+    const { data: course } = await supabaseAdmin
+      .from("courses")
+      .select("id, abierto_a_todos, estado")
+      .eq("id", data.course_id)
+      .maybeSingle();
+    if (!course || !course.abierto_a_todos || course.estado !== "activa") {
+      throw new Error("Este curso no está disponible para auto-inscripción.");
+    }
+    const { data: existing } = await supabaseAdmin
+      .from("course_assignments")
+      .select("id")
+      .eq("course_id", data.course_id)
+      .eq("employee_id", emp.id)
+      .maybeSingle();
+    if (existing) return { assignment_id: existing.id, already: true };
+    const { data: created, error } = await supabaseAdmin
+      .from("course_assignments")
+      .insert({
+        course_id: data.course_id,
+        employee_id: emp.id,
+        origen: "auto_inscripcion",
+        estado: "pendiente",
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { assignment_id: created.id, already: false };
+  });
+
+
+
 
 export const listMyCertificates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
