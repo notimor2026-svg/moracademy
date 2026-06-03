@@ -122,9 +122,25 @@ function NewCourse() {
               </Select>
             </div>
             <div className="space-y-1.5"><Label>Nota mínima (%)</Label><Input type="number" min={50} max={100} value={course.nota_minima} onChange={(e) => setCourse({ ...course, nota_minima: +e.target.value })} /></div>
+            <div className="space-y-2 sm:col-span-2 rounded-lg border border-border/60 bg-muted/30 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label className="text-sm font-semibold">Visible para todos los usuarios</Label>
+                  <p className="text-xs text-muted-foreground">
+                    El curso aparecerá en el catálogo abierto y cualquier colaborador podrá
+                    inscribirse por su cuenta. No será obligatorio ni contará como asignado.
+                  </p>
+                </div>
+                <Switch
+                  checked={course.abierto_a_todos}
+                  onCheckedChange={(c) => setCourse({ ...course, abierto_a_todos: c })}
+                />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
+
 
       <Card className="border-border/60">
         <CardContent className="space-y-4 p-6 sm:p-8">
