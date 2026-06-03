@@ -33,7 +33,7 @@ function AuthenticatedLayout() {
     if (!loading && !session) navigate({ to: "/login", replace: true });
   }, [loading, session, navigate]);
 
-  const meQ = useQuery({ queryKey: ["me", session?.user.id], queryFn: () => me(), enabled: !!session });
+  const meQ = useQuery({ queryKey: ["me", session?.user.id], queryFn: () => me(), enabled: !!session?.access_token });
 
   const roles: string[] = meQ.data?.roles ?? [];
   const isJefe = roles.includes("jefe_directo");
