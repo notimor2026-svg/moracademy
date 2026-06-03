@@ -28,8 +28,9 @@ function NewCourse() {
   const fn = useServerFn(createCourse);
   const [course, setCourse] = useState({
     nombre: "", descripcion: "", tipo: "constante" as "induccion" | "constante",
-    nota_minima: 80, intentos_max: 3,
+    nota_minima: 80, intentos_max: 3, abierto_a_todos: false,
   });
+
   const [lessons, setLessons] = useState<Lesson[]>([{ titulo: "", tipo: "texto", contenido: "", obligatorio: true }]);
   const [quiz, setQuiz] = useState<{
     enabled: boolean;
