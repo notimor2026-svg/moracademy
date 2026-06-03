@@ -63,66 +63,48 @@ export async function downloadCertificate(cert: Cert) {
   let logoImg: HTMLImageElement | null = null;
   try { logoImg = await loadImage(logoUrl); } catch { /* ignore */ }
 
+  // Acentos dorados en esquinas (L delgadas) — sup-der e inf-izq
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.8);
+  const accLen = 36;
+  const accOff = 40;
+  doc.line(W - accOff - accLen, accOff, W - accOff, accOff);
+  doc.line(W - accOff, accOff, W - accOff, accOff + accLen);
+  doc.line(accOff, H - accOff, accOff + accLen, H - accOff);
+  doc.line(accOff, H - accOff - accLen, accOff, H - accOff);
+
   // Marca de agua del escudo a la derecha
   if (logoImg) {
     try {
-      // Recorta el escudo (parte superior ~58% del logo)
       const shieldCrop = cropImage(logoImg, 0, 0, logoImg.width, Math.floor(logoImg.height * 0.58));
-      const ratio = (logoImg.width) / Math.floor(logoImg.height * 0.58);
-      const wmH = 360;
+      const ratio = logoImg.width / Math.floor(logoImg.height * 0.58);
+      const wmH = 380;
       const wmW = wmH * ratio;
-      const gState = (doc as any).GState ? new (doc as any).GState({ opacity: 0.08 }) : null;
+      const gState = (doc as any).GState ? new (doc as any).GState({ opacity: 0.07 }) : null;
       if (gState) (doc as any).setGState(gState);
-      doc.addImage(shieldCrop, "PNG", W - wmW * 0.75, H / 2 - wmH / 2, wmW, wmH);
+      doc.addImage(shieldCrop, "PNG", W - wmW * 0.72, H / 2 - wmH / 2, wmW, wmH);
       if (gState) (doc as any).setGState(new (doc as any).GState({ opacity: 1 }));
     } catch { /* ignore */ }
   }
 
-  // Encabezado: escudo + wordmark "MOR ACADEMY" en horizontal
-  const headerY = 55;
-  const headerH = 90;
+  // Encabezado: logo COMPLETO centrado (escudo + wordmark de la marca)
   if (logoImg) {
     try {
-      const shieldH = logoImg.height * 0.58;
-      const shieldCrop = cropImage(logoImg, 0, 0, logoImg.width, Math.floor(shieldH));
-      const sRatio = logoImg.width / shieldH;
-      const sH = headerH;
-      const sW = sH * sRatio;
-
-      // Wordmark a la derecha del escudo
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...NAVY);
-      doc.setFontSize(44);
-      const wordmark = "MOR";
-      const subWord = "ACADEMY";
-      doc.setFontSize(20);
-      const acadW = doc.getTextWidth(subWord);
-      doc.setFontSize(44);
-      const morW = doc.getTextWidth(wordmark);
-      const textBlockW = Math.max(morW, acadW);
-      const gap = 16;
-      const totalW = sW + gap + textBlockW;
-      const startX = (W - totalW) / 2;
-
-      doc.addImage(shieldCrop, "PNG", startX, headerY, sW, sH);
-
-      const textX = startX + sW + gap;
-      doc.setFontSize(44);
-      doc.text(wordmark, textX, headerY + 50);
-      doc.setFontSize(20);
-      doc.setFont("helvetica", "normal");
-      doc.text(subWord, textX, headerY + 78, { charSpace: 2 });
+      const logoRatio = logoImg.width / logoImg.height;
+      const logoW = W * 0.20;
+      const logoH = logoW / logoRatio;
+      doc.addImage(logoImg, "PNG", (W - logoW) / 2, 48, logoW, logoH);
     } catch {
       doc.setFont("helvetica", "bold");
       doc.setTextColor(...NAVY);
       doc.setFontSize(28);
-      doc.text("MOR ACADEMY", W / 2, headerY + 50, { align: "center" });
+      doc.text("MOR ACADEMY", W / 2, 100, { align: "center" });
     }
   } else {
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...NAVY);
     doc.setFontSize(28);
-    doc.text("MOR ACADEMY", W / 2, headerY + 50, { align: "center" });
+    doc.text("MOR ACADEMY", W / 2, 100, { align: "center" });
   }
 
   // CERTIFICADO
