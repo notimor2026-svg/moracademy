@@ -143,9 +143,10 @@ function Home() {
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
               {allBadges.map((b: any) => {
                 const owned = myBadges.some((m: any) => m.badge_id === b.id);
+                const Icon = badgeIcons[b.icono] ?? Award;
                 return (
-                  <div key={b.id} className={`flex flex-col items-center rounded-lg border p-3 text-center transition ${owned ? "border-gold/40 bg-gold/10" : "border-border/60 opacity-40 grayscale"}`}>
-                    <Award className={`mb-1 h-6 w-6 ${owned ? "text-gold-foreground" : "text-muted-foreground"}`} />
+                  <div key={b.id} title={b.descripcion ?? ""} className={`flex flex-col items-center rounded-lg border p-3 text-center transition ${owned ? "border-gold/40 bg-gold/10" : "border-border/60 opacity-40 grayscale"}`}>
+                    <Icon className={`mb-1 h-6 w-6 ${owned ? "text-gold-foreground" : "text-muted-foreground"}`} />
                     <p className="text-xs font-medium leading-tight">{b.nombre}</p>
                   </div>
                 );
