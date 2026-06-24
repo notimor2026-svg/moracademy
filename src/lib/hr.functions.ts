@@ -334,17 +334,19 @@ export const assignCourse = createServerFn({ method: "POST" })
     z
       .object({
         employee_ids: z.array(z.string().uuid()).min(1),
-        course_id: z.string().uuid(),
+        course_ids: z.array(z.string().uuid()).min(1),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
     await requireRrhh(context.userId);
-    const rows = data.employee_ids.map((eid) => ({
-      employee_id: eid,
-      course_id: data.course_id,
-      origen: "manual" as const,
-    }));
+    const rows = data.employee_ids.flatMap((eid) =>
+      data.course_ids.map((cid) => ({
+        employee_id: eid,
+        course_id: cid,
+        origen: "manual" as const,
+      })),
+    );
     await supabaseAdmin
       .from("course_assignments")
       .upsert(rows, {

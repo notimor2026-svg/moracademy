@@ -116,7 +116,7 @@ function Page() {
 
 function AssignDialog({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false);
-  const [courseId, setCourseId] = useState<string>("");
+  const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fnEmps = useServerFn(listEmployees);
   const fnCourses = useServerFn(listCoursesBasic);
@@ -124,10 +124,10 @@ function AssignDialog({ onDone }: { onDone: () => void }) {
   const emps = useQuery({ queryKey: ["employees"], queryFn: () => fnEmps(), enabled: open });
   const courses = useQuery({ queryKey: ["courses-basic"], queryFn: () => fnCourses(), enabled: open });
   const m = useMutation({
-    mutationFn: () => fnAssign({ data: { course_id: courseId, employee_ids: Array.from(selected) } }),
+    mutationFn: () => fnAssign({ data: { course_ids: Array.from(selectedCourses), employee_ids: Array.from(selected) } }),
     onSuccess: (r) => {
       toast.success(`${r.assigned} asignaciones creadas.`);
-      setOpen(false); setSelected(new Set()); setCourseId(""); onDone();
+      setOpen(false); setSelected(new Set()); setSelectedCourses(new Set()); onDone();
     },
     onError: (e: any) => toast.error(e.message ?? "Error"),
   });
@@ -138,22 +138,29 @@ function AssignDialog({ onDone }: { onDone: () => void }) {
         <Button><Plus className="mr-1 h-4 w-4" /> Asignar curso</Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
-        <DialogHeader><DialogTitle>Asignar curso a empleados</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Asignar cursos a empleados</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <span className="text-sm font-medium">Curso</span>
-            <Select value={courseId} onValueChange={setCourseId}>
-              <SelectTrigger><SelectValue placeholder="Selecciona un curso" /></SelectTrigger>
-              <SelectContent>
-                {(courses.data ?? []).map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <span className="text-sm font-medium">Cursos ({selectedCourses.size} seleccionados)</span>
+            <div className="max-h-56 overflow-y-auto rounded-md border border-border">
+              {(courses.data ?? []).map((c: any) => (
+                <label key={c.id} className="flex cursor-pointer items-center gap-3 border-b border-border/60 px-3 py-2 hover:bg-muted/40">
+                  <Checkbox
+                    checked={selectedCourses.has(c.id)}
+                    onCheckedChange={(chk) => {
+                      const next = new Set(selectedCourses);
+                      if (chk) next.add(c.id); else next.delete(c.id);
+                      setSelectedCourses(next);
+                    }}
+                  />
+                  <div className="min-w-0 flex-1 text-sm font-medium">{c.nombre}</div>
+                </label>
+              ))}
+            </div>
           </div>
           <div className="space-y-1.5">
             <span className="text-sm font-medium">Empleados ({selected.size} seleccionados)</span>
-            <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+            <div className="max-h-56 overflow-y-auto rounded-md border border-border">
               {(emps.data ?? []).map((e: any) => (
                 <label key={e.id} className="flex cursor-pointer items-center gap-3 border-b border-border/60 px-3 py-2 hover:bg-muted/40">
                   <Checkbox
@@ -175,8 +182,8 @@ function AssignDialog({ onDone }: { onDone: () => void }) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button onClick={() => m.mutate()} disabled={!courseId || selected.size === 0 || m.isPending}>
-            {m.isPending ? "Asignando…" : `Asignar a ${selected.size}`}
+          <Button onClick={() => m.mutate()} disabled={selectedCourses.size === 0 || selected.size === 0 || m.isPending}>
+            {m.isPending ? "Asignando…" : `Asignar (${selectedCourses.size * selected.size})`}
           </Button>
         </DialogFooter>
       </DialogContent>
