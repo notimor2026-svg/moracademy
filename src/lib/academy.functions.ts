@@ -433,7 +433,11 @@ async function requireRrhhRole(userId: string) {
     .select("role")
     .eq("user_id", userId);
   const roles = (data ?? []).map((r) => r.role);
-  if (!roles.includes("rrhh" as any) && !roles.includes("super_admin" as any)) {
+  if (
+    !roles.includes("rrhh" as any) &&
+    !roles.includes("super_admin" as any) &&
+    !roles.includes("creador" as any)
+  ) {
     throw new Error("No tienes permisos.");
   }
 }
