@@ -47,9 +47,10 @@ function EditCourse() {
   const fnDel = useServerFn(deleteLesson);
   const fnReorder = useServerFn(reorderLessons);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["course-edit", courseId],
     queryFn: () => fnGet({ data: { course_id: courseId } }),
+    retry: false,
   });
 
   const [form, setForm] = useState<any>(null);
