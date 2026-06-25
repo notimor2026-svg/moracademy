@@ -540,7 +540,7 @@ export const getCourseEdit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ course_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireRrhh(context.userId);
+    await requireCourseEditor(context.userId);
     const [{ data: course }, { data: lessons }, { data: quizzes }] = await Promise.all([
       supabaseAdmin.from("courses").select("*").eq("id", data.course_id).single(),
       supabaseAdmin.from("course_lessons").select("*").eq("course_id", data.course_id).order("orden"),
@@ -567,7 +567,7 @@ export const updateCourse = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await requireRrhh(context.userId);
+    await requireCourseEditor(context.userId);
     const { course_id, ...patch } = data;
     const { error } = await supabaseAdmin.from("courses").update(patch).eq("id", course_id);
     if (error) throw new Error(error.message);
@@ -599,7 +599,7 @@ export const upsertLesson = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await requireRrhh(context.userId);
+    await requireCourseEditor(context.userId);
     const payload = {
       ...data,
       text_excerpt: data.contenido?.slice(0, 4000) ?? null,
@@ -622,7 +622,7 @@ export const deleteLesson = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireRrhh(context.userId);
+    await requireCourseEditor(context.userId);
     const { error } = await supabaseAdmin.from("course_lessons").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -638,7 +638,7 @@ export const reorderLessons = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await requireRrhh(context.userId);
+    await requireCourseEditor(context.userId);
     await Promise.all(
       data.order.map((o) =>
         supabaseAdmin.from("course_lessons").update({ orden: o.orden }).eq("id", o.id),
