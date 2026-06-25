@@ -108,6 +108,7 @@ function EditCourse() {
           intentos_max: form.intentos_max,
           duracion_min: form.duracion_min,
           permite_certificado: form.permite_certificado,
+          abierto_a_todos: form.abierto_a_todos,
         },
       }),
     onSuccess: () => {
