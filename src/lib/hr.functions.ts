@@ -47,12 +47,14 @@ export const getMe = createServerFn({ method: "GET" })
     ]);
     const roleList = (roles ?? []).map((r) => r.role as string);
     const isSuper = roleList.includes("super_admin") || emp?.dui === ADMIN_DUI;
+    const isCreador = roleList.includes("creador");
     return {
       userId,
       roles: roleList,
       employee: emp,
-      isAdmin: emp?.dui === ADMIN_DUI || isSuper,
+      isAdmin: emp?.dui === ADMIN_DUI || isSuper || isCreador,
       isSuperAdmin: isSuper,
+      isCreador,
     };
   });
 
@@ -935,7 +937,7 @@ export const deleteSavedReport = createServerFn({ method: "POST" })
 // Gestión de Usuarios (Super Administrador)
 // ============================================================
 
-const ASSIGNABLE_ROLES = ["colaborador", "rrhh", "jefe_directo", "super_admin"] as const;
+const ASSIGNABLE_ROLES = ["colaborador", "rrhh", "jefe_directo", "super_admin", "creador"] as const;
 type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
 export const listSystemUsers = createServerFn({ method: "GET" })
@@ -1022,7 +1024,7 @@ export const setUserRoles = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({
       employee_id: z.string().uuid(),
-      roles: z.array(z.enum(ASSIGNABLE_ROLES)).max(4),
+      roles: z.array(z.enum(ASSIGNABLE_ROLES)).max(5),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
@@ -1056,7 +1058,7 @@ export const createSystemUser = createServerFn({ method: "POST" })
       email: z.string().email().or(z.literal("")).optional(),
       area: z.string().max(80).optional(),
       cargo: z.string().max(80).optional(),
-      roles: z.array(z.enum(ASSIGNABLE_ROLES)).min(1).max(4),
+      roles: z.array(z.enum(ASSIGNABLE_ROLES)).min(1).max(5),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {

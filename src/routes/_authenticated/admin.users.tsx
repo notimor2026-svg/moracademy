@@ -30,6 +30,7 @@ const ROLES = [
   { value: "super_admin", label: "Super Administrador" },
   { value: "rrhh", label: "RRHH" },
   { value: "jefe_directo", label: "Jefe Directo" },
+  { value: "creador", label: "Creador" },
   { value: "colaborador", label: "Colaborador" },
 ] as const;
 
