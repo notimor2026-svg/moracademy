@@ -1024,7 +1024,7 @@ export const setUserRoles = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({
       employee_id: z.string().uuid(),
-      roles: z.array(z.enum(ASSIGNABLE_ROLES)).max(4),
+      roles: z.array(z.enum(ASSIGNABLE_ROLES)).max(5),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
@@ -1058,7 +1058,7 @@ export const createSystemUser = createServerFn({ method: "POST" })
       email: z.string().email().or(z.literal("")).optional(),
       area: z.string().max(80).optional(),
       cargo: z.string().max(80).optional(),
-      roles: z.array(z.enum(ASSIGNABLE_ROLES)).min(1).max(4),
+      roles: z.array(z.enum(ASSIGNABLE_ROLES)).min(1).max(5),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
