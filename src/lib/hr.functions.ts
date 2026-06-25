@@ -33,6 +33,19 @@ const requireSuperAdmin = async (userId: string) => {
   }
 };
 
+// Permite a quienes pueden gestionar cursos: admin maestro, super_admin, rrhh o creador.
+const requireCourseEditor = async (userId: string) => {
+  const { data: roles } = await supabaseAdmin
+    .from("user_roles").select("role").eq("user_id", userId);
+  const roleSet = new Set((roles ?? []).map((r) => r.role as string));
+  if (roleSet.has("super_admin") || roleSet.has("rrhh") || roleSet.has("creador")) return;
+  const { data: emp } = await supabaseAdmin
+    .from("employees").select("dui").eq("auth_user_id", userId).maybeSingle();
+  if (emp?.dui !== ADMIN_DUI) {
+    throw new Error("No tienes permisos para gestionar cursos.");
+  }
+};
+
 export const getMe = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -527,7 +540,7 @@ export const getCourseEdit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ course_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireRrhh(context.userId);
+    await requireCourseEditor(context.userId);
     const [{ data: course }, { data: lessons }, { data: quizzes }] = await Promise.all([
       supabaseAdmin.from("courses").select("*").eq("id", data.course_id).single(),
       supabaseAdmin.from("course_lessons").select("*").eq("course_id", data.course_id).order("orden"),
@@ -554,7 +567,7 @@ export const updateCourse = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await requireRrhh(context.userId);
+    await requireCourseEditor(context.userId);
     const { course_id, ...patch } = data;
     const { error } = await supabaseAdmin.from("courses").update(patch).eq("id", course_id);
     if (error) throw new Error(error.message);
@@ -586,7 +599,7 @@ export const upsertLesson = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await requireRrhh(context.userId);
+    await requireCourseEditor(context.userId);
     const payload = {
       ...data,
       text_excerpt: data.contenido?.slice(0, 4000) ?? null,
@@ -609,7 +622,7 @@ export const deleteLesson = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireRrhh(context.userId);
+    await requireCourseEditor(context.userId);
     const { error } = await supabaseAdmin.from("course_lessons").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -625,7 +638,7 @@ export const reorderLessons = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await requireRrhh(context.userId);
+    await requireCourseEditor(context.userId);
     await Promise.all(
       data.order.map((o) =>
         supabaseAdmin.from("course_lessons").update({ orden: o.orden }).eq("id", o.id),
