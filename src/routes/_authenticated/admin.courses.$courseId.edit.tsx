@@ -228,6 +228,13 @@ function EditCourse() {
               </div>
               <Switch checked={!!form.permite_certificado} onCheckedChange={(c) => setForm({ ...form, permite_certificado: c })} />
             </div>
+            <div className="flex items-center justify-between rounded-md border border-border/60 p-3 sm:col-span-2">
+              <div>
+                <Label>Abierto a todos</Label>
+                <p className="text-xs text-muted-foreground">Aparece en el catálogo para que cualquier empleado pueda inscribirse.</p>
+              </div>
+              <Switch checked={!!form.abierto_a_todos} onCheckedChange={(c) => setForm({ ...form, abierto_a_todos: c })} />
+            </div>
           </div>
           <div className="flex justify-end">
             <Button onClick={() => saveCourse.mutate()} disabled={saveCourse.isPending}>
