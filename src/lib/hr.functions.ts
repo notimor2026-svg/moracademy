@@ -563,6 +563,7 @@ export const updateCourse = createServerFn({ method: "POST" })
         intentos_max: z.number().min(1).max(10),
         duracion_min: z.number().min(1).max(1000).optional().nullable(),
         permite_certificado: z.boolean(),
+        abierto_a_todos: z.boolean().optional(),
       })
       .parse(d),
   )
