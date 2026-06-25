@@ -33,6 +33,19 @@ const requireSuperAdmin = async (userId: string) => {
   }
 };
 
+// Permite a quienes pueden gestionar cursos: admin maestro, super_admin, rrhh o creador.
+const requireCourseEditor = async (userId: string) => {
+  const { data: roles } = await supabaseAdmin
+    .from("user_roles").select("role").eq("user_id", userId);
+  const roleSet = new Set((roles ?? []).map((r) => r.role as string));
+  if (roleSet.has("super_admin") || roleSet.has("rrhh") || roleSet.has("creador")) return;
+  const { data: emp } = await supabaseAdmin
+    .from("employees").select("dui").eq("auth_user_id", userId).maybeSingle();
+  if (emp?.dui !== ADMIN_DUI) {
+    throw new Error("No tienes permisos para gestionar cursos.");
+  }
+};
+
 export const getMe = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
