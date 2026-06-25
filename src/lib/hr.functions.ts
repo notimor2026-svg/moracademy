@@ -937,7 +937,7 @@ export const deleteSavedReport = createServerFn({ method: "POST" })
 // Gestión de Usuarios (Super Administrador)
 // ============================================================
 
-const ASSIGNABLE_ROLES = ["colaborador", "rrhh", "jefe_directo", "super_admin"] as const;
+const ASSIGNABLE_ROLES = ["colaborador", "rrhh", "jefe_directo", "super_admin", "creador"] as const;
 type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
 export const listSystemUsers = createServerFn({ method: "GET" })
