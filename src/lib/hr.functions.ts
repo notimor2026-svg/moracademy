@@ -47,12 +47,14 @@ export const getMe = createServerFn({ method: "GET" })
     ]);
     const roleList = (roles ?? []).map((r) => r.role as string);
     const isSuper = roleList.includes("super_admin") || emp?.dui === ADMIN_DUI;
+    const isCreador = roleList.includes("creador");
     return {
       userId,
       roles: roleList,
       employee: emp,
-      isAdmin: emp?.dui === ADMIN_DUI || isSuper,
+      isAdmin: emp?.dui === ADMIN_DUI || isSuper || isCreador,
       isSuperAdmin: isSuper,
+      isCreador,
     };
   });
 
