@@ -150,7 +150,21 @@ function EditCourse() {
     moveLesson.mutate(next.map((l, i) => ({ id: l.id!, orden: i + 1 })));
   };
 
-  if (isLoading || !form) {
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  }
+  if (error) {
+    return (
+      <Card className="mx-auto mt-10 max-w-xl border-destructive/40">
+        <CardContent className="space-y-3 p-6 text-center">
+          <p className="font-medium text-destructive">No se pudo cargar el curso</p>
+          <p className="text-sm text-muted-foreground">{(error as Error).message}</p>
+          <Button variant="outline" onClick={() => nav({ to: "/admin/courses" })}>Volver</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!form) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
 
