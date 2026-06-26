@@ -53,8 +53,8 @@ function Home() {
   });
 
   const assignments = data?.assignments ?? [];
-  const induction = assignments.filter((a) => a.origen === "induccion");
-  const ongoing = assignments.filter((a) => a.origen !== "induccion");
+  const induction = assignments.filter((a) => a.courses?.tipo === "induccion" || a.origen === "induccion");
+  const ongoing = assignments.filter((a) => !(a.courses?.tipo === "induccion" || a.origen === "induccion"));
   const aprobados = assignments.filter((a) => a.estado === "aprobado").length;
   const open = openCourses.data ?? [];
 
