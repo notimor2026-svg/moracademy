@@ -38,9 +38,12 @@ function Home() {
   const fnEnroll = useServerFn(enrollOpenCourse);
   const qc = useQueryClient();
   const nav = useNavigate();
-  const { data, isLoading } = useQuery({ queryKey: ["my-assignments"], queryFn: () => fn() });
-  const game = useQuery({ queryKey: ["gamification"], queryFn: () => fnGame() });
-  const openCourses = useQuery({ queryKey: ["open-courses"], queryFn: () => fnOpen() });
+  const { session } = useAuth();
+  const enabled = !!session?.access_token;
+  const { data, isLoading } = useQuery({ queryKey: ["my-assignments"], queryFn: () => fn(), enabled });
+  const game = useQuery({ queryKey: ["gamification"], queryFn: () => fnGame(), enabled });
+  const openCourses = useQuery({ queryKey: ["open-courses"], queryFn: () => fnOpen(), enabled });
+
 
   const enroll = useMutation({
     mutationFn: (course_id: string) => fnEnroll({ data: { course_id } }),
