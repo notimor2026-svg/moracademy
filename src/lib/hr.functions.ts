@@ -15,9 +15,12 @@ const requireRrhh = async (userId: string) => {
     .select("dui")
     .eq("auth_user_id", userId)
     .maybeSingle();
-  if (emp?.dui !== ADMIN_DUI) {
-    throw new Error("Solo el administrador autorizado puede ejecutar esta acción.");
-  }
+  if (emp?.dui === ADMIN_DUI) return;
+  const { data: roles } = await supabaseAdmin
+    .from("user_roles").select("role").eq("user_id", userId);
+  const roleSet = new Set((roles ?? []).map((r) => r.role as string));
+  if (roleSet.has("super_admin") || roleSet.has("rrhh")) return;
+  throw new Error("Solo el administrador autorizado puede ejecutar esta acción.");
 };
 
 const requireSuperAdmin = async (userId: string) => {
