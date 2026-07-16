@@ -157,14 +157,35 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
       .single();
     if (!quiz) throw new Error("Quiz no encontrado.");
 
-    const { data: prev } = await supabase
+    // Reutiliza un intento abierto (no enviado) si existe, para no
+    // consumir intentos por recargas o navegación accidental.
+    const { data: openAttempt } = await supabase
+      .from("quiz_attempts")
+      .select("id, intento_num, preguntas")
+      .eq("quiz_id", data.quiz_id)
+      .eq("employee_id", emp!.id)
+      .is("finished_at", null)
+      .order("intento_num", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (openAttempt) {
+      return {
+        attempt_id: openAttempt.id,
+        preguntas: openAttempt.preguntas,
+        intento_num: openAttempt.intento_num,
+      };
+    }
+
+    // Cuenta solo intentos finalizados para determinar el próximo número.
+    const { data: finished } = await supabase
       .from("quiz_attempts")
       .select("intento_num")
       .eq("quiz_id", data.quiz_id)
       .eq("employee_id", emp!.id)
+      .not("finished_at", "is", null)
       .order("intento_num", { ascending: false })
       .limit(1);
-    const intento_num = (prev?.[0]?.intento_num ?? 0) + 1;
+    const intento_num = (finished?.[0]?.intento_num ?? 0) + 1;
 
     if (intento_num > quiz.intentos_permitidos) {
       throw new Error("Has agotado los intentos permitidos.");
