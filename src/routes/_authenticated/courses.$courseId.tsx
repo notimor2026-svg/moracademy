@@ -55,7 +55,6 @@ function CoursePage() {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   }
 
-  const finalQuiz = quizzes.find((q) => q.es_final) ?? quizzes[0];
   const canTakeQuiz = pct === 100;
 
   return (
@@ -104,24 +103,56 @@ function CoursePage() {
                   </button>
                 );
               })}
-              {finalQuiz && (
-                <div className={cn(
-                  "mt-1 flex items-start gap-3 rounded-md p-3 text-sm",
-                  canTakeQuiz ? "bg-gold/10" : "opacity-60",
-                )}>
-                  <ListChecks className="mt-0.5 h-4 w-4 text-gold-foreground" />
-                  <div className="flex-1">
-                    <div className="text-xs text-muted-foreground">Evaluación final</div>
-                    <div className="font-medium">{finalQuiz.nombre}</div>
-                    <Button
-                      size="sm"
-                      className="mt-2 w-full bg-gradient-gold text-gold-foreground hover:opacity-90"
-                      disabled={!canTakeQuiz}
-                      onClick={() => navigate({ to: "/quiz/$quizId", params: { quizId: finalQuiz.id } })}
-                    >
-                      {canTakeQuiz ? "Iniciar evaluación" : "Completa las lecciones"}
-                    </Button>
-                  </div>
+              {quizzes.length > 0 && (
+                <div className="mt-2 border-t border-border pt-2">
+                  <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Evaluaciones
+                  </p>
+                  {quizzes.map((q) => {
+                    const lessonIdx = q.lesson_id
+                      ? lessons.findIndex((l) => l.id === q.lesson_id)
+                      : -1;
+                    const unlocked = q.es_final
+                      ? canTakeQuiz
+                      : q.lesson_id
+                        ? !!progress[q.lesson_id]
+                        : true;
+                    const label = q.es_final
+                      ? "Evaluación final"
+                      : lessonIdx >= 0
+                        ? `Evaluación · Lección ${lessonIdx + 1}`
+                        : "Evaluación";
+                    const gateMsg = q.es_final
+                      ? "Completa las lecciones"
+                      : "Completa la lección";
+                    return (
+                      <div
+                        key={q.id}
+                        className={cn(
+                          "mt-1 flex items-start gap-3 rounded-md p-3 text-sm",
+                          unlocked ? (q.es_final ? "bg-gold/10" : "bg-muted/40") : "opacity-60",
+                        )}
+                      >
+                        <ListChecks className="mt-0.5 h-4 w-4 text-gold-foreground" />
+                        <div className="flex-1">
+                          <div className="text-xs text-muted-foreground">{label}</div>
+                          <div className="font-medium">{q.nombre}</div>
+                          <Button
+                            size="sm"
+                            className={cn(
+                              "mt-2 w-full",
+                              q.es_final && "bg-gradient-gold text-gold-foreground hover:opacity-90",
+                            )}
+                            variant={q.es_final ? "default" : "outline"}
+                            disabled={!unlocked}
+                            onClick={() => navigate({ to: "/quiz/$quizId", params: { quizId: q.id } })}
+                          >
+                            {unlocked ? "Iniciar evaluación" : gateMsg}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

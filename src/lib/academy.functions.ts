@@ -518,6 +518,47 @@ export const deleteQuiz = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const deleteCourse = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ course_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireRrhhRole(context.userId);
+    const cid = data.course_id;
+    // Borra dependencias en orden para evitar violaciones de FK.
+    const { data: lessons } = await supabaseAdmin
+      .from("course_lessons")
+      .select("id")
+      .eq("course_id", cid);
+    const lessonIds = (lessons ?? []).map((l) => l.id);
+    const { data: assigns } = await supabaseAdmin
+      .from("course_assignments")
+      .select("id")
+      .eq("course_id", cid);
+    const assignIds = (assigns ?? []).map((a) => a.id);
+    const { data: quizzes } = await supabaseAdmin
+      .from("quizzes")
+      .select("id")
+      .eq("course_id", cid);
+    const quizIds = (quizzes ?? []).map((q) => q.id);
+
+    if (quizIds.length) {
+      await supabaseAdmin.from("quiz_attempts").delete().in("quiz_id", quizIds);
+    }
+    if (lessonIds.length) {
+      await supabaseAdmin.from("lesson_progress").delete().in("lesson_id", lessonIds);
+    }
+    if (assignIds.length) {
+      await supabaseAdmin.from("certificates").delete().in("assignment_id", assignIds);
+    }
+    await supabaseAdmin.from("certificates").delete().eq("course_id", cid);
+    await supabaseAdmin.from("quizzes").delete().eq("course_id", cid);
+    await supabaseAdmin.from("course_lessons").delete().eq("course_id", cid);
+    await supabaseAdmin.from("course_assignments").delete().eq("course_id", cid);
+    const { error } = await supabaseAdmin.from("courses").delete().eq("id", cid);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const listOpenCourses = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
