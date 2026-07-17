@@ -55,7 +55,6 @@ function CoursePage() {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   }
 
-  const finalQuiz = quizzes.find((q) => q.es_final) ?? quizzes[0];
   const canTakeQuiz = pct === 100;
 
   return (
