@@ -34,6 +34,7 @@ function AdminLayout() {
     { to: "/admin/courses", label: "Cursos", creadorOk: true },
     { to: "/admin/assignments", label: "Asignaciones" },
     { to: "/admin/reports", label: "Reportes" },
+    { to: "/admin/feedback", label: "Retroalimentación", superOnly: true },
     { to: "/admin/audit", label: "Auditoría" },
   ]
     .filter((t) => !t.superOnly || isSuper)
