@@ -1118,3 +1118,104 @@ export const createSystemUser = createServerFn({ method: "POST" })
 
     return { ok: true, employee_id: emp.id };
   });
+
+// ============== INCORRECT ANSWERS REPORT (Super Admin) ==============
+
+const WrongAnswersFiltersSchema = z.object({
+  employee_id: z.string().uuid().optional().nullable(),
+  course_id: z.string().uuid().optional().nullable(),
+  only_wrong: z.boolean().optional().default(true),
+  limit: z.number().int().min(1).max(1000).optional().default(300),
+});
+
+export const listWrongAnswers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => WrongAnswersFiltersSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await requireSuperAdmin(context.userId);
+
+    let q = supabaseAdmin
+      .from("quiz_attempts")
+      .select("id, quiz_id, employee_id, intento_num, score, aprobado, finished_at, preguntas, respuestas")
+      .not("finished_at", "is", null)
+      .order("finished_at", { ascending: false })
+      .limit(data.limit);
+
+    if (data.employee_id) q = q.eq("employee_id", data.employee_id);
+    const { data: attempts, error } = await q;
+    if (error) throw new Error(error.message);
+    if (!attempts?.length) return { rows: [] };
+
+    const quizIds = Array.from(new Set(attempts.map((a) => a.quiz_id)));
+    const empIds = Array.from(new Set(attempts.map((a) => a.employee_id)));
+
+    const [{ data: quizzes }, { data: employees }] = await Promise.all([
+      supabaseAdmin.from("quizzes").select("id, nombre, course_id, courses(nombre)").in("id", quizIds),
+      supabaseAdmin.from("employees").select("id, nombre, dui").in("id", empIds),
+    ]);
+
+    const quizMap = new Map((quizzes ?? []).map((q: any) => [q.id, q]));
+    const empMap = new Map((employees ?? []).map((e: any) => [e.id, e]));
+
+    const filtered = data.course_id
+      ? attempts.filter((a) => (quizMap.get(a.quiz_id) as any)?.course_id === data.course_id)
+      : attempts;
+
+    const rows = filtered.map((a) => {
+      const preguntas = (a.preguntas as any[]) ?? [];
+      const respuestas = (a.respuestas as any[]) ?? [];
+      const items = preguntas.map((p, i) => {
+        const dado: number[] = Array.isArray(respuestas[i]) ? respuestas[i] : [];
+        const correcto: number[] = Array.isArray(p?.respuesta_correcta) ? p.respuesta_correcta : [];
+        const dSorted = [...dado].sort().join(",");
+        const cSorted = [...correcto].sort().join(",");
+        const ok = dSorted === cSorted;
+        return {
+          idx: i + 1,
+          enunciado: p?.enunciado ?? "",
+          tipo: p?.tipo ?? "opcion_multiple",
+          opciones: (p?.opciones as string[]) ?? [],
+          respuesta_correcta: correcto,
+          respuesta_dada: dado,
+          justificacion: p?.justificacion ?? "",
+          ok,
+        };
+      });
+      const wrong = items.filter((it) => !it.ok);
+      const quiz: any = quizMap.get(a.quiz_id);
+      const emp: any = empMap.get(a.employee_id);
+      return {
+        attempt_id: a.id,
+        intento_num: a.intento_num,
+        score: a.score,
+        aprobado: a.aprobado,
+        finished_at: a.finished_at,
+        employee: emp ? { id: emp.id, nombre: emp.nombre, dui: emp.dui } : null,
+        quiz: quiz ? { id: quiz.id, nombre: quiz.nombre, course_id: quiz.course_id, course_nombre: quiz.courses?.nombre } : null,
+        total: items.length,
+        aciertos: items.length - wrong.length,
+        errores: wrong.length,
+        preguntas: data.only_wrong ? wrong : items,
+      };
+    });
+
+    return { rows: data.only_wrong ? rows.filter((r) => r.errores > 0) : rows };
+  });
+
+export const listEmployeesLite = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireSuperAdmin(context.userId);
+    const { data } = await supabaseAdmin
+      .from("employees").select("id, nombre, dui").order("nombre");
+    return data ?? [];
+  });
+
+export const listCoursesLite = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireSuperAdmin(context.userId);
+    const { data } = await supabaseAdmin
+      .from("courses").select("id, nombre").order("nombre");
+    return data ?? [];
+  });
