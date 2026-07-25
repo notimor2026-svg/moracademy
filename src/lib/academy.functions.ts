@@ -106,6 +106,58 @@ export const markLessonComplete = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Enlace temporal (1 h) para leer/descargar material didáctico de una lección.
+export const getLessonFileUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ lesson_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    const { data: lesson } = await supabaseAdmin
+      .from("course_lessons")
+      .select("id, course_id, storage_path, titulo")
+      .eq("id", data.lesson_id)
+      .maybeSingle();
+    if (!lesson?.storage_path) throw new Error("La lección no tiene material adjunto.");
+
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+    const isStaff = (roles ?? []).some(
+      (r: any) => r.role === "rrhh" || r.role === "super_admin" || r.role === "creador",
+    );
+
+    if (!isStaff) {
+      const { data: emp } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("auth_user_id", userId)
+        .maybeSingle();
+      if (!emp) throw new Error("No tienes acceso a este material.");
+      const { data: courseRow } = await supabaseAdmin
+        .from("courses")
+        .select("abierto_a_todos")
+        .eq("id", lesson.course_id)
+        .maybeSingle();
+      if (!courseRow?.abierto_a_todos) {
+        const { data: assigns } = await supabaseAdmin
+          .from("course_assignments")
+          .select("employee_id, employees!inner(jefe_id)")
+          .eq("course_id", lesson.course_id);
+        const allowed = (assigns ?? []).some(
+          (a: any) => a.employee_id === emp.id || a.employees?.jefe_id === emp.id,
+        );
+        if (!allowed) throw new Error("No tienes acceso a este material.");
+      }
+    }
+
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("course-materials")
+      .createSignedUrl(lesson.storage_path, 60 * 60);
+    if (error || !signed?.signedUrl) throw new Error(error?.message ?? "No se pudo generar el enlace.");
+    return { url: signed.signedUrl };
+  });
+
+
+
 // =================== QUIZ (preguntas manuales) ===================
 
 const QuestionSchema = z.object({
