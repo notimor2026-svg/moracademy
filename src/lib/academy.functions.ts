@@ -107,8 +107,41 @@ export const markLessonComplete = createServerFn({ method: "POST" })
       },
       { onConflict: "employee_id,lesson_id" },
     );
+
+    // Si el curso no tiene evaluaciones y ya completó todas las lecciones,
+    // se marca la asignación como aprobada (p. ej. material didáctico).
+    const { data: lessonRow } = await supabaseAdmin
+      .from("course_lessons")
+      .select("course_id")
+      .eq("id", data.lesson_id)
+      .maybeSingle();
+    const courseId = lessonRow?.course_id;
+    if (courseId) {
+      const [{ data: allLessons }, { data: quizRows }] = await Promise.all([
+        supabaseAdmin.from("course_lessons").select("id").eq("course_id", courseId),
+        supabaseAdmin.from("quizzes").select("id").eq("course_id", courseId),
+      ]);
+      const lessonIds = (allLessons ?? []).map((l) => l.id);
+      if (!(quizRows ?? []).length && lessonIds.length) {
+        const { data: done } = await supabaseAdmin
+          .from("lesson_progress")
+          .select("lesson_id")
+          .eq("employee_id", emp!.id)
+          .eq("completado", true)
+          .in("lesson_id", lessonIds);
+        const doneIds = new Set((done ?? []).map((d) => d.lesson_id));
+        if (lessonIds.every((id) => doneIds.has(id))) {
+          await supabaseAdmin
+            .from("course_assignments")
+            .update({ estado: "aprobado", fecha_finalizacion: new Date().toISOString() })
+            .eq("course_id", courseId)
+            .eq("employee_id", emp!.id);
+        }
+      }
+    }
     return { ok: true };
   });
+
 
 // Enlace temporal (1 h) para leer/descargar material didáctico de una lección.
 export const getLessonFileUrl = createServerFn({ method: "POST" })
