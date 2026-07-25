@@ -12,9 +12,9 @@ export function normalizeDui(value: string): string {
   return value.trim();
 }
 
-/** Password derivada determinística para auth interno (oculta al usuario) */
-export function duiPassword(dui: string): string {
-  return `MOR-ACADEMY::${dui}::v1`;
+/** PIN de acceso: exactamente 6 dígitos */
+export function isValidPin(value: string): boolean {
+  return /^\d{6}$/.test(value.trim());
 }
 
 export function duiEmail(dui: string): string {

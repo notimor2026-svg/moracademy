@@ -71,7 +71,11 @@ export const getCourseDetail = createServerFn({ method: "GET" })
         .select("*")
         .eq("course_id", data.course_id)
         .order("orden"),
-      supabase.from("quizzes").select("*").eq("course_id", data.course_id).order("posicion"),
+      supabase
+        .from("quizzes")
+        .select("id, course_id, lesson_id, posicion, nombre, num_preguntas, umbral, intentos_permitidos, bloquea_avance, es_final, created_at")
+        .eq("course_id", data.course_id)
+        .order("posicion"),
     ]);
     let progress: Record<string, boolean> = {};
     if (emp) {
@@ -191,6 +195,12 @@ const randomizeQuestions = (questions: QuizQuestion[]): QuizQuestion[] => {
   });
 };
 
+/** Quita la clave de respuestas antes de enviar las preguntas al navegador. */
+const stripAnswers = (questions: QuizQuestion[]) =>
+  (questions ?? []).map(({ respuesta_correcta, ...rest }) => rest as Omit<QuizQuestion, "respuesta_correcta">);
+
+
+
 export const startQuizAttempt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ quiz_id: z.string().uuid() }).parse(d))
@@ -202,7 +212,17 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
       .eq("auth_user_id", userId)
       .single();
 
-    const { data: quiz } = await supabase
+    // Verificación de acceso con el cliente del usuario (RLS), sin traer
+    // la clave de respuestas.
+    const { data: quizAccess } = await supabase
+      .from("quizzes")
+      .select("id, umbral, intentos_permitidos")
+      .eq("id", data.quiz_id)
+      .single();
+    if (!quizAccess) throw new Error("Quiz no encontrado.");
+
+    // Las preguntas (con respuestas correctas) solo se leen en el servidor.
+    const { data: quiz } = await supabaseAdmin
       .from("quizzes")
       .select("*")
       .eq("id", data.quiz_id)
@@ -211,7 +231,7 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
 
     // Reutiliza un intento abierto (no enviado) si existe, para no
     // consumir intentos por recargas o navegación accidental.
-    const { data: openAttempt } = await supabase
+    const { data: openAttempt } = await supabaseAdmin
       .from("quiz_attempts")
       .select("id, intento_num, preguntas")
       .eq("quiz_id", data.quiz_id)
@@ -223,7 +243,7 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
     if (openAttempt) {
       return {
         attempt_id: openAttempt.id,
-        preguntas: openAttempt.preguntas,
+        preguntas: stripAnswers(openAttempt.preguntas as QuizQuestion[]),
         intento_num: openAttempt.intento_num,
       };
     }
@@ -260,7 +280,7 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
       .select()
       .single();
     if (error) throw new Error(error.message);
-    return { attempt_id: attempt.id, preguntas, intento_num };
+    return { attempt_id: attempt.id, preguntas: stripAnswers(preguntas), intento_num };
   });
 
 
@@ -276,10 +296,17 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: attempt } = await supabase
+    const { data: me } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .single();
+    if (!me) throw new Error("Empleado no encontrado.");
+    const { data: attempt } = await supabaseAdmin
       .from("quiz_attempts")
       .select("*, quizzes(*)")
       .eq("id", data.attempt_id)
+      .eq("employee_id", me.id)
       .single();
     if (!attempt) throw new Error("Intento no encontrado.");
     const preguntas = attempt.preguntas as Array<{ respuesta_correcta: number[] }>;

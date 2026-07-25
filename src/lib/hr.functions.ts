@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
-import { isValidDui, duiEmail, duiPassword } from "@/lib/dui";
+import { isValidDui, duiEmail } from "@/lib/dui";
+import { accountPassword } from "@/lib/account-password.server";
 
 // Único DUI autorizado para acceder al módulo de administración.
 // Cualquier otro usuario, aún si tuviera rol "rrhh" en la BD, no debe ver
@@ -99,7 +100,7 @@ export const createEmployee = createServerFn({ method: "POST" })
 
     // 1) Crea auth user
     const email = duiEmail(data.dui);
-    const password = duiPassword(data.dui);
+    const password = accountPassword(data.dui);
     const { data: created, error: cErr } =
       await supabaseAdmin.auth.admin.createUser({
         email,
@@ -484,21 +485,9 @@ export const getCertificate = createServerFn({ method: "GET" })
     return cert;
   });
 
-// Ayuda dev: garantiza al menos un usuario RRHH (cuando no hay ninguno)
-export const ensureFirstRrhh = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data: any } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "rrhh")
-      .limit(1);
-    if (any && any.length) return { promoted: false };
-    await supabaseAdmin
-      .from("user_roles")
-      .insert({ user_id: context.userId, role: "rrhh" });
-    return { promoted: true };
-  });
+// (Eliminado) ensureFirstRrhh: permitía que cualquier usuario autenticado se
+// auto-asignara el rol RRHH. La asignación de roles se hace desde
+// Gestión de Usuarios por un super administrador.
 
 // ============== AUDIT LOG ==============
 export const listAuditLog = createServerFn({ method: "GET" })
@@ -1084,7 +1073,7 @@ export const createSystemUser = createServerFn({ method: "POST" })
 
     // Crear auth user con password derivada del DUI.
     const email = duiEmail(data.dui);
-    const password = duiPassword(data.dui);
+    const password = accountPassword(data.dui);
     const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
       email, password, email_confirm: true,
       user_metadata: { dui: data.dui, nombre: data.nombre },

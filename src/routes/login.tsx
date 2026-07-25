@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
-import { isValidDui, normalizeDui } from "@/lib/dui";
+import { isValidDui, isValidPin, normalizeDui } from "@/lib/dui";
 import { toast } from "sonner";
 import { Loader2, ShieldCheck } from "lucide-react";
 
@@ -15,6 +15,9 @@ export const Route = createFileRoute("/login")({ component: LoginPage });
 
 function LoginPage() {
   const [dui, setDui] = useState("");
+  const [pin, setPin] = useState("");
+  const [pin2, setPin2] = useState("");
+  const [step, setStep] = useState<"dui" | "login" | "setup">("dui");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { session } = useAuth();
@@ -22,6 +25,17 @@ function LoginPage() {
   useEffect(() => {
     if (session) navigate({ to: "/home", replace: true });
   }, [session, navigate]);
+
+  const post = async (body: Record<string, string>) => {
+    const res = await fetch("/api/auth/dui-login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error ?? "Error de inicio de sesión.");
+    return json;
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,16 +46,23 @@ function LoginPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/auth/dui-login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ dui: v }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Error de inicio de sesión.");
-      const { error } = await supabase.auth.signInWithPassword({
-        email: body.email,
-        password: body.password,
+      if (step === "dui") {
+        const { needsSetup } = await post({ dui: v, mode: "check" });
+        setStep(needsSetup ? "setup" : "login");
+        return;
+      }
+      if (!isValidPin(pin)) {
+        toast.error("El PIN debe tener 6 dígitos.");
+        return;
+      }
+      if (step === "setup" && pin !== pin2) {
+        toast.error("Los PIN no coinciden.");
+        return;
+      }
+      const body = await post({ dui: v, pin, mode: step });
+      const { error } = await supabase.auth.setSession({
+        access_token: body.access_token,
+        refresh_token: body.refresh_token,
       });
       if (error) throw error;
       toast.success("Bienvenido a MOR ACADEMY");
@@ -52,6 +73,7 @@ function LoginPage() {
       setSubmitting(false);
     }
   };
+
 
   return (
     <main className="relative grid min-h-screen lg:grid-cols-2">
@@ -86,7 +108,9 @@ function LoginPage() {
             Inicia sesión
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ingresa con tu Documento Único de Identidad.
+            {step === "setup"
+              ? "Primer ingreso: crea tu PIN personal de 6 dígitos."
+              : "Ingresa con tu DUI y tu PIN personal."}
           </p>
           <form onSubmit={onSubmit} className="mt-8 space-y-5">
             <div className="space-y-2">
@@ -96,7 +120,10 @@ function LoginPage() {
                 inputMode="numeric"
                 placeholder="00000000-0"
                 value={dui}
-                onChange={(e) => setDui(e.target.value)}
+                onChange={(e) => {
+                  setDui(e.target.value);
+                  setStep("dui");
+                }}
                 maxLength={10}
                 autoFocus
               />
@@ -104,9 +131,46 @@ function LoginPage() {
                 Si tu DUI no es reconocido, contacta a Recursos Humanos.
               </p>
             </div>
+            {step !== "dui" && (
+              <div className="space-y-2">
+                <Label htmlFor="pin">{step === "setup" ? "Crea tu PIN (6 dígitos)" : "PIN"}</Label>
+                <Input
+                  id="pin"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete={step === "setup" ? "new-password" : "current-password"}
+                  placeholder="••••••"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+                  maxLength={6}
+                />
+              </div>
+            )}
+            {step === "setup" && (
+              <div className="space-y-2">
+                <Label htmlFor="pin2">Confirma tu PIN</Label>
+                <Input
+                  id="pin2"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="new-password"
+                  placeholder="••••••"
+                  value={pin2}
+                  onChange={(e) => setPin2(e.target.value.replace(/\D/g, ""))}
+                  maxLength={6}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Guárdalo: lo necesitarás en cada inicio de sesión.
+                </p>
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={submitting} size="lg">
               {submitting ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificando…</>
+              ) : step === "dui" ? (
+                "Continuar"
+              ) : step === "setup" ? (
+                "Crear PIN y entrar"
               ) : (
                 "Acceder a MOR ACADEMY"
               )}

@@ -372,6 +372,35 @@ export type Database = {
           },
         ]
       }
+      employee_pins: {
+        Row: {
+          created_at: string
+          employee_id: string
+          pin_hash: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          pin_hash: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          pin_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_pins_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           area: string | null
