@@ -223,7 +223,7 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
     if (openAttempt) {
       return {
         attempt_id: openAttempt.id,
-        preguntas: openAttempt.preguntas,
+        preguntas: stripAnswers(openAttempt.preguntas as QuizQuestion[]),
         intento_num: openAttempt.intento_num,
       };
     }
