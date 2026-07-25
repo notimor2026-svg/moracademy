@@ -217,11 +217,26 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
       .select("*")
       .eq("id", data.quiz_id)
       .single();
+    // Verificación de acceso con el cliente del usuario (RLS), sin traer
+    // la clave de respuestas.
+    const { data: quizAccess } = await supabase
+      .from("quizzes")
+      .select("id, umbral, intentos_permitidos")
+      .eq("id", data.quiz_id)
+      .single();
+    if (!quizAccess) throw new Error("Quiz no encontrado.");
+
+    // Las preguntas (con respuestas correctas) solo se leen en el servidor.
+    const { data: quiz } = await supabaseAdmin
+      .from("quizzes")
+      .select("*")
+      .eq("id", data.quiz_id)
+      .single();
     if (!quiz) throw new Error("Quiz no encontrado.");
 
     // Reutiliza un intento abierto (no enviado) si existe, para no
     // consumir intentos por recargas o navegación accidental.
-    const { data: openAttempt } = await supabase
+    const { data: openAttempt } = await supabaseAdmin
       .from("quiz_attempts")
       .select("id, intento_num, preguntas")
       .eq("quiz_id", data.quiz_id)
