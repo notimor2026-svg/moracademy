@@ -83,7 +83,6 @@ function NewEmp() {
     m.mutate();
   };
 
-  const showInduction = form.tipo_proceso !== "constante";
 
   return (
     <Card className="mx-auto max-w-3xl border-border/60">
@@ -122,7 +121,7 @@ function NewEmp() {
             </Select>
           </Field>
 
-          {showInduction && (
+          {(
             <Field label="Perfil de puesto — Requisición (MOR Requisiciones y Reclutamiento)" className="sm:col-span-2">
               {reqs.isLoading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando requisiciones…</div>
