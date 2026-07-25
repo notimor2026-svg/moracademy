@@ -353,7 +353,7 @@ export const createCourse = createServerFn({ method: "POST" })
       .object({
         nombre: z.string().min(2).max(160),
         descripcion: z.string().max(2000).optional(),
-        tipo: z.enum(["induccion", "constante"]).default("constante"),
+        tipo: z.enum(["induccion", "constante", "material"]).default("constante"),
         nota_minima: z.number().min(50).max(100).default(80),
         intentos_max: z.number().min(1).max(10).default(3),
         abierto_a_todos: z.boolean().default(false),
@@ -361,9 +361,10 @@ export const createCourse = createServerFn({ method: "POST" })
           .array(
             z.object({
               titulo: z.string().min(1),
-              tipo: z.enum(["texto", "video_url", "enlace"]).default("texto"),
+              tipo: z.enum(["texto", "video_url", "enlace", "archivo"]).default("texto"),
               contenido: z.string().optional(),
               url_externa: z.string().optional(),
+              storage_path: z.string().optional().nullable(),
               obligatorio: z.boolean().default(true),
             }),
           )
