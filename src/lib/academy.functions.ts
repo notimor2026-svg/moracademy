@@ -193,7 +193,7 @@ const randomizeQuestions = (questions: QuizQuestion[]): QuizQuestion[] => {
 
 /** Quita la clave de respuestas antes de enviar las preguntas al navegador. */
 const stripAnswers = (questions: QuizQuestion[]) =>
-  (questions ?? []).map(({ respuesta_correcta, justificacion, ...rest }) => rest);
+  (questions ?? []).map(({ respuesta_correcta, ...rest }) => rest as Omit<QuizQuestion, "respuesta_correcta">);
 
 
 
