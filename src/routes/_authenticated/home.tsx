@@ -121,7 +121,9 @@ function Home() {
                       disabled={enroll.isPending}
                     >
                       {enroll.isPending && enroll.variables === c.id ? (
-                        <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Inscribiendo…</>
+                        <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> {c.tipo === "material" ? "Abriendo…" : "Inscribiendo…"}</>
+                      ) : c.tipo === "material" ? (
+                        <>Ver <ArrowRight className="ml-1 h-4 w-4" /></>
                       ) : (
                         <>Inscribirme <ArrowRight className="ml-1 h-4 w-4" /></>
                       )}
