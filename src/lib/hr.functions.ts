@@ -100,7 +100,7 @@ export const createEmployee = createServerFn({ method: "POST" })
 
     // 1) Crea auth user
     const email = duiEmail(data.dui);
-    const password = duiPassword(data.dui);
+    const password = accountPassword(data.dui);
     const { data: created, error: cErr } =
       await supabaseAdmin.auth.admin.createUser({
         email,
@@ -1085,7 +1085,7 @@ export const createSystemUser = createServerFn({ method: "POST" })
 
     // Crear auth user con password derivada del DUI.
     const email = duiEmail(data.dui);
-    const password = duiPassword(data.dui);
+    const password = accountPassword(data.dui);
     const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
       email, password, email_confirm: true,
       user_metadata: { dui: data.dui, nombre: data.nombre },
