@@ -296,10 +296,17 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: attempt } = await supabase
+    const { data: me } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .single();
+    if (!me) throw new Error("Empleado no encontrado.");
+    const { data: attempt } = await supabaseAdmin
       .from("quiz_attempts")
       .select("*, quizzes(*)")
       .eq("id", data.attempt_id)
+      .eq("employee_id", me.id)
       .single();
     if (!attempt) throw new Error("Intento no encontrado.");
     const preguntas = attempt.preguntas as Array<{ respuesta_correcta: number[] }>;
