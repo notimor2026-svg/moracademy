@@ -83,7 +83,6 @@ function NewEmp() {
     m.mutate();
   };
 
-  const showInduction = form.tipo_proceso !== "constante";
 
   return (
     <Card className="mx-auto max-w-3xl border-border/60">
@@ -122,15 +121,15 @@ function NewEmp() {
             </Select>
           </Field>
 
-          {showInduction && (
-            <Field label="Requisición cubierta (MOR Talent Pipeline)" className="sm:col-span-2">
+          {(
+            <Field label="Perfil de puesto — Requisición (MOR Requisiciones y Reclutamiento)" className="sm:col-span-2">
               {reqs.isLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando requisiciones del Pipeline…</div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando requisiciones…</div>
               ) : reqs.isError ? (
                 <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div>
-                    <div className="font-medium">No se pudo leer el Talent Pipeline.</div>
+                    <div className="font-medium">No se pudo leer el sistema de requisiciones.</div>
                     <div className="text-xs opacity-80">{(reqs.error as Error)?.message}</div>
                   </div>
                 </div>
@@ -145,7 +144,7 @@ function NewEmp() {
                 <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 p-3">
                   <div className="flex items-center gap-2 text-sm font-medium"><GraduationCap className="h-4 w-4" /> Capacitaciones obligatorias ({selected.required_trainings.length})</div>
                   {selected.required_trainings.length === 0 ? (
-                    <p className="mt-1 text-xs text-muted-foreground">Esta requisición no tiene capacitaciones registradas en el Pipeline.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Esta requisición no tiene capacitaciones registradas en la requisición.</p>
                   ) : (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {selected.required_trainings.map((t, i) => <Badge key={i} variant="secondary" className="font-normal">{t}</Badge>)}

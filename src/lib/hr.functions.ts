@@ -284,56 +284,80 @@ export const listPipelineRequisitions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<PipelineRequisition[]> => {
     await requireRrhh(context.userId);
-    // Traemos TODAS las requisiciones del Pipeline. RRHH filtrará/buscará
-    // desde la UI (por código, cargo, área o estado).
-    const url =
-      `${PIPELINE_URL}/rest/v1/requisitions` +
-      `?select=id,code,position_title,management_area,required_trainings,status,updated_at,departments(name)` +
-      `&order=updated_at.desc&limit=500`;
+    const headers = {
+      apikey: PIPELINE_ANON,
+      Authorization: `Bearer ${PIPELINE_ANON}`,
+      "Content-Type": "application/json",
+    };
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 8000);
-    let res: Response;
+    const timer = setTimeout(() => ctl.abort(), 10000);
+
+    const call = (input: string, init?: RequestInit) =>
+      fetch(input, { ...init, headers, signal: ctl.signal });
+
+    let rows:
+      | Array<{
+          id: string;
+          code: string;
+          position_title: string;
+          management_area: string | null;
+          department?: string | null;
+          departments?: { name: string } | null;
+          required_trainings: string[] | null;
+          status: string | null;
+          updated_at: string | null;
+        }>
+      | null = null;
+    let lastError = "";
+
     try {
-      res = await fetch(url, {
-        headers: { apikey: PIPELINE_ANON, Authorization: `Bearer ${PIPELINE_ANON}` },
-        signal: ctl.signal,
+      // 1) Vía preferida: RPC pública del sistema de requisiciones (expone solo
+      //    columnas seguras de TODAS las requisiciones).
+      const rpc = await call(`${PIPELINE_URL}/rest/v1/rpc/academy_list_requisitions`, {
+        method: "POST",
+        body: "{}",
       });
+      if (rpc.ok) {
+        rows = await rpc.json();
+      } else {
+        lastError = `rpc ${rpc.status}: ${(await rpc.text()).slice(0, 160)}`;
+        // 2) Respaldo: lectura directa de la tabla (si existe policy anónima).
+        const rest = await call(
+          `${PIPELINE_URL}/rest/v1/requisitions` +
+            `?select=id,code,position_title,management_area,required_trainings,status,updated_at,departments(name)` +
+            `&order=updated_at.desc&limit=1000`,
+        );
+        if (rest.ok) rows = await rest.json();
+        else lastError += ` | rest ${rest.status}: ${(await rest.text()).slice(0, 160)}`;
+      }
     } catch (e: any) {
       clearTimeout(timer);
       if (e?.name === "AbortError") {
-        throw new Error("El Talent Pipeline tardó demasiado en responder (>8s). Reintenta.");
+        throw new Error("El sistema de requisiciones tardó demasiado en responder. Reintenta.");
       }
-      throw new Error(`No se pudo contactar al Talent Pipeline: ${e?.message ?? "error de red"}`);
+      throw new Error(`No se pudo contactar al sistema de requisiciones: ${e?.message ?? "error de red"}`);
     }
     clearTimeout(timer);
-    if (!res.ok) {
-      const body = await res.text();
+
+    if (!rows) {
       throw new Error(
-        `No se pudo leer el Talent Pipeline (${res.status}). ` +
-          `Revisa que la policy de lectura anónima esté creada. Detalle: ${body.slice(0, 200)}`,
+        "No se pudo leer el sistema de requisiciones. Falta habilitar el acceso de lectura " +
+          `(función academy_list_requisitions) en ese proyecto. Detalle: ${lastError}`,
       );
     }
-    const rows = (await res.json()) as Array<{
-      id: string;
-      code: string;
-      position_title: string;
-      management_area: string | null;
-      required_trainings: string[] | null;
-      status: string | null;
-      updated_at: string | null;
-      departments: { name: string } | null;
-    }>;
+
     return rows.map((r) => ({
       id: r.id,
       code: r.code,
       position_title: r.position_title,
       management_area: r.management_area,
-      department: r.departments?.name ?? null,
+      department: r.department ?? r.departments?.name ?? null,
       required_trainings: r.required_trainings ?? [],
       status: r.status,
       updated_at: r.updated_at,
     }));
   });
+
 
 
 export const listEmployees = createServerFn({ method: "GET" })
