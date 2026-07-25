@@ -21,6 +21,7 @@ import {
   emptyQuestion,
   type ManualQuestion,
 } from "@/components/QuestionsEditor";
+import { MaterialUpload } from "@/components/MaterialUpload";
 
 
 export const Route = createFileRoute("/_authenticated/admin/courses/$courseId/edit")({
@@ -30,9 +31,10 @@ export const Route = createFileRoute("/_authenticated/admin/courses/$courseId/ed
 type Lesson = {
   id?: string;
   titulo: string;
-  tipo: "texto" | "video_url" | "enlace" | "pdf";
+  tipo: "texto" | "video_url" | "enlace" | "pdf" | "archivo";
   contenido?: string | null;
   url_externa?: string | null;
+  storage_path?: string | null;
   obligatorio: boolean;
   orden: number;
 };
@@ -195,6 +197,7 @@ function EditCourse() {
                 <SelectContent>
                   <SelectItem value="constante">Constante</SelectItem>
                   <SelectItem value="induccion">Inducción</SelectItem>
+                  <SelectItem value="material">Material didáctico</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -301,7 +304,7 @@ function EditCourse() {
                     <SelectItem value="texto">Texto</SelectItem>
                     <SelectItem value="video_url">Video URL</SelectItem>
                     <SelectItem value="enlace">Enlace</SelectItem>
-                    <SelectItem value="pdf">PDF</SelectItem>
+                    <SelectItem value="archivo">Documento (PDF, PPTX, Excel…)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -315,6 +318,14 @@ function EditCourse() {
                 <Label>Contenido</Label>
                 <Textarea rows={8} value={editing.contenido ?? ""} onChange={(e) => setEditing({ ...editing, contenido: e.target.value })} />
               </div>
+            ) : editing.tipo === "archivo" || editing.tipo === "pdf" ? (
+              <div className="space-y-1.5">
+                <Label>Material didáctico</Label>
+                <MaterialUpload
+                  value={{ storage_path: editing.storage_path, nombre: editing.contenido }}
+                  onChange={(v) => setEditing({ ...editing, tipo: "archivo", storage_path: v.storage_path, contenido: v.nombre ?? "" })}
+                />
+              </div>
             ) : (
               <div className="space-y-1.5">
                 <Label>URL</Label>
@@ -323,7 +334,11 @@ function EditCourse() {
             )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
-              <Button onClick={() => saveLesson.mutate(editing)} disabled={saveLesson.isPending || !editing.titulo}>
+              <Button onClick={() => saveLesson.mutate(editing)} disabled={
+                  saveLesson.isPending ||
+                  !editing.titulo ||
+                  ((editing.tipo === "archivo" || editing.tipo === "pdf") && !editing.storage_path)
+                }>
                 {saveLesson.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />} Guardar lección
               </Button>
             </div>

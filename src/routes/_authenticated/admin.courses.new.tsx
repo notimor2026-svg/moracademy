@@ -18,16 +18,24 @@ import {
   validateQuestions,
   type ManualQuestion,
 } from "@/components/QuestionsEditor";
+import { MaterialUpload } from "@/components/MaterialUpload";
 
 export const Route = createFileRoute("/_authenticated/admin/courses/new")({ component: NewCourse });
 
-type Lesson = { titulo: string; tipo: "texto" | "video_url" | "enlace"; contenido?: string; url_externa?: string; obligatorio: boolean };
+type Lesson = {
+  titulo: string;
+  tipo: "texto" | "video_url" | "enlace" | "archivo";
+  contenido?: string;
+  url_externa?: string;
+  storage_path?: string | null;
+  obligatorio: boolean;
+};
 
 function NewCourse() {
   const nav = useNavigate();
   const fn = useServerFn(createCourse);
   const [course, setCourse] = useState({
-    nombre: "", descripcion: "", tipo: "constante" as "induccion" | "constante",
+    nombre: "", descripcion: "", tipo: "constante" as "induccion" | "constante" | "material",
     nota_minima: 80, intentos_max: 3, abierto_a_todos: false,
   });
 
@@ -101,6 +109,8 @@ function NewCourse() {
   if (!course.nombre.trim()) missing.push("nombre del curso");
   const emptyLessons = lessons.filter((l) => !l.titulo.trim()).length;
   if (emptyLessons > 0) missing.push(`título en ${emptyLessons} lección(es)`);
+  const missingFiles = lessons.filter((l) => l.tipo === "archivo" && !l.storage_path).length;
+  if (missingFiles > 0) missing.push(`documento en ${missingFiles} lección(es)`);
   const disabled = m.isPending || missing.length > 0 || quizErrors.length > 0;
 
   return (
@@ -118,6 +128,7 @@ function NewCourse() {
                 <SelectContent>
                   <SelectItem value="constante">Capacitación constante</SelectItem>
                   <SelectItem value="induccion">Inducción</SelectItem>
+                  <SelectItem value="material">Material didáctico (lectura a su ritmo)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -169,11 +180,17 @@ function NewCourse() {
                       <SelectItem value="texto">Texto</SelectItem>
                       <SelectItem value="video_url">Video (YouTube/URL)</SelectItem>
                       <SelectItem value="enlace">Enlace externo</SelectItem>
+                      <SelectItem value="archivo">Documento (PDF, PPTX, Excel…)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 {l.tipo === "texto" ? (
                   <Textarea rows={5} placeholder="Contenido de la lección" value={l.contenido} onChange={(e) => updateLesson(i, { contenido: e.target.value })} />
+                ) : l.tipo === "archivo" ? (
+                  <MaterialUpload
+                    value={{ storage_path: l.storage_path, nombre: l.contenido }}
+                    onChange={(v) => updateLesson(i, { storage_path: v.storage_path, contenido: v.nombre ?? "" })}
+                  />
                 ) : (
                   <Input placeholder="https://..." value={l.url_externa ?? ""} onChange={(e) => updateLesson(i, { url_externa: e.target.value })} />
                 )}
@@ -190,7 +207,7 @@ function NewCourse() {
               <h2 className="font-display text-2xl font-semibold flex items-center gap-2">
                 <ListChecks className="h-5 w-5 text-primary" /> Evaluación / Quiz del curso
               </h2>
-              <p className="text-sm text-muted-foreground">Crea manualmente las preguntas que verá el alumno.</p>
+              <p className="text-sm text-muted-foreground">Opcional: desactívala si el curso es solo de lectura. Si la activas, crea manualmente las preguntas que verá el alumno.</p>
             </div>
             <Switch checked={quiz.enabled} onCheckedChange={(c) => setQuiz({ ...quiz, enabled: c })} />
           </div>
