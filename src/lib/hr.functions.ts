@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
-import { isValidDui, duiEmail, duiPassword } from "@/lib/dui";
+import { isValidDui, duiEmail } from "@/lib/dui";
+import { accountPassword } from "@/lib/account-password.server";
 
 // Único DUI autorizado para acceder al módulo de administración.
 // Cualquier otro usuario, aún si tuviera rol "rrhh" en la BD, no debe ver
