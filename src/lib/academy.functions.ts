@@ -212,11 +212,6 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
       .eq("auth_user_id", userId)
       .single();
 
-    const { data: quiz } = await supabase
-      .from("quizzes")
-      .select("*")
-      .eq("id", data.quiz_id)
-      .single();
     // Verificación de acceso con el cliente del usuario (RLS), sin traer
     // la clave de respuestas.
     const { data: quizAccess } = await supabase
