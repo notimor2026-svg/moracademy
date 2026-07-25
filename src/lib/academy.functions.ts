@@ -14,12 +14,53 @@ export const listMyAssignments = createServerFn({ method: "GET" })
       .eq("auth_user_id", userId)
       .maybeSingle();
     if (!emp) return { employee: null, assignments: [] };
+    // Reconcilia cursos sin evaluación cuyas lecciones ya están completas.
+    await syncCompletionWithoutQuiz(emp.id);
     const { data } = await supabase
       .from("course_assignments")
       .select("*, courses(*)")
       .eq("employee_id", emp.id);
     return { employee: emp, assignments: data ?? [] };
   });
+
+// Marca como aprobadas las asignaciones de cursos sin evaluación cuando
+// todas sus lecciones ya fueron completadas por el empleado.
+async function syncCompletionWithoutQuiz(employeeId: string, courseId?: string) {
+  let q = supabaseAdmin
+    .from("course_assignments")
+    .select("id, course_id")
+    .eq("employee_id", employeeId)
+    .neq("estado", "aprobado");
+  if (courseId) q = q.eq("course_id", courseId);
+  const { data: assigns } = await q;
+  if (!assigns?.length) return;
+  const courseIds = assigns.map((a) => a.course_id);
+  const [{ data: lessons }, { data: quizzes }, { data: done }] = await Promise.all([
+    supabaseAdmin.from("course_lessons").select("id, course_id").in("course_id", courseIds),
+    supabaseAdmin.from("quizzes").select("course_id").in("course_id", courseIds),
+    supabaseAdmin
+      .from("lesson_progress")
+      .select("lesson_id")
+      .eq("employee_id", employeeId)
+      .eq("completado", true),
+  ]);
+  const withQuiz = new Set((quizzes ?? []).map((q) => q.course_id));
+  const doneIds = new Set((done ?? []).map((d) => d.lesson_id));
+  const toApprove: string[] = [];
+  for (const a of assigns) {
+    if (withQuiz.has(a.course_id)) continue;
+    const ls = (lessons ?? []).filter((l) => l.course_id === a.course_id);
+    if (!ls.length) continue;
+    if (ls.every((l) => doneIds.has(l.id))) toApprove.push(a.id);
+  }
+  if (toApprove.length) {
+    await supabaseAdmin
+      .from("course_assignments")
+      .update({ estado: "aprobado", fecha_finalizacion: new Date().toISOString() })
+      .in("id", toApprove);
+  }
+}
+
 
 export const getCourseDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
