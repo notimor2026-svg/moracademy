@@ -485,21 +485,9 @@ export const getCertificate = createServerFn({ method: "GET" })
     return cert;
   });
 
-// Ayuda dev: garantiza al menos un usuario RRHH (cuando no hay ninguno)
-export const ensureFirstRrhh = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data: any } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "rrhh")
-      .limit(1);
-    if (any && any.length) return { promoted: false };
-    await supabaseAdmin
-      .from("user_roles")
-      .insert({ user_id: context.userId, role: "rrhh" });
-    return { promoted: true };
-  });
+// (Eliminado) ensureFirstRrhh: permitía que cualquier usuario autenticado se
+// auto-asignara el rol RRHH. La asignación de roles se hace desde
+// Gestión de Usuarios por un super administrador.
 
 // ============== AUDIT LOG ==============
 export const listAuditLog = createServerFn({ method: "GET" })
