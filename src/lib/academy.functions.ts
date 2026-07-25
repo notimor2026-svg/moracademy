@@ -396,6 +396,7 @@ export const createCourse = createServerFn({ method: "POST" })
       tipo: l.tipo,
       contenido: l.contenido ?? null,
       url_externa: l.url_externa ?? null,
+      storage_path: l.storage_path ?? null,
       obligatorio: l.obligatorio,
       orden: idx + 1,
       text_excerpt: l.contenido?.slice(0, 4000) ?? null,
