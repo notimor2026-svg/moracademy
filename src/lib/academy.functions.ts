@@ -191,6 +191,12 @@ const randomizeQuestions = (questions: QuizQuestion[]): QuizQuestion[] => {
   });
 };
 
+/** Quita la clave de respuestas antes de enviar las preguntas al navegador. */
+const stripAnswers = (questions: QuizQuestion[]) =>
+  (questions ?? []).map(({ respuesta_correcta, justificacion, ...rest }) => rest);
+
+
+
 export const startQuizAttempt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ quiz_id: z.string().uuid() }).parse(d))
