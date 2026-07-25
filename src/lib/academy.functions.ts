@@ -266,7 +266,7 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
       .select()
       .single();
     if (error) throw new Error(error.message);
-    return { attempt_id: attempt.id, preguntas, intento_num };
+    return { attempt_id: attempt.id, preguntas: stripAnswers(preguntas), intento_num };
   });
 
 
