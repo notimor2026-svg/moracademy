@@ -71,7 +71,11 @@ export const getCourseDetail = createServerFn({ method: "GET" })
         .select("*")
         .eq("course_id", data.course_id)
         .order("orden"),
-      supabase.from("quizzes").select("*").eq("course_id", data.course_id).order("posicion"),
+      supabase
+        .from("quizzes")
+        .select("id, course_id, lesson_id, posicion, nombre, num_preguntas, umbral, intentos_permitidos, bloquea_avance, es_final, created_at")
+        .eq("course_id", data.course_id)
+        .order("posicion"),
     ]);
     let progress: Record<string, boolean> = {};
     if (emp) {
