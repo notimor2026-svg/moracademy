@@ -1,13 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getCourseDetail, markLessonComplete } from "@/lib/academy.functions";
+import { getCourseDetail, markLessonComplete, getLessonFileUrl } from "@/lib/academy.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  ArrowLeft, BookOpen, CheckCircle2, FileText, Film, Link as LinkIcon, ListChecks, Loader2,
+  ArrowLeft, BookOpen, CheckCircle2, Download, FileText, Film, Link as LinkIcon, ListChecks, Loader2, Paperclip,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ export const Route = createFileRoute("/_authenticated/courses/$courseId")({
 const lessonIcon = (tipo?: string) => {
   if (tipo === "video_url") return Film;
   if (tipo === "enlace") return LinkIcon;
+  if (tipo === "archivo" || tipo === "pdf") return Paperclip;
   return FileText;
 };
 
@@ -64,7 +65,7 @@ function CoursePage() {
       </Link>
 
       <header className="rounded-2xl bg-gradient-hero p-6 text-primary-foreground sm:p-8">
-        <Badge className="bg-gold text-gold-foreground hover:bg-gold">{data.course.tipo === "induccion" ? "Inducción" : "Capacitación continua"}</Badge>
+        <Badge className="bg-gold text-gold-foreground hover:bg-gold">{data.course.tipo === "induccion" ? "Inducción" : data.course.tipo === "material" ? "Material didáctico" : "Capacitación continua"}</Badge>
         <h1 className="mt-3 font-display text-3xl font-semibold sm:text-4xl">{data.course.nombre}</h1>
         <p className="mt-2 max-w-3xl text-primary-foreground/80">{data.course.descripcion}</p>
         <div className="mt-5 flex items-center gap-4">
@@ -201,7 +202,74 @@ function CoursePage() {
   );
 }
 
+function MaterialLesson({ lesson }: { lesson: any }) {
+  const getUrl = useServerFn(getLessonFileUrl);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["lesson-file", lesson.id],
+    queryFn: () => getUrl({ data: { lesson_id: lesson.id } }),
+    retry: false,
+    staleTime: 30 * 60 * 1000,
+  });
+
+  const nombre: string = lesson.contenido || "Documento";
+  const ext = (nombre.split(".").pop() ?? "").toLowerCase();
+  const url = data?.url;
+
+  if (isLoading) {
+    return <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>;
+  }
+  if (error || !url) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No se pudo abrir el material. {(error as Error)?.message ?? ""}
+      </p>
+    );
+  }
+
+  const isPdf = ext === "pdf";
+  const isImage = ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext);
+  const isOffice = ["doc", "docx", "ppt", "pptx", "xls", "xlsx"].includes(ext);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/40 px-4 py-3">
+        <span className="flex min-w-0 items-center gap-2 text-sm">
+          <Paperclip className="h-4 w-4 shrink-0 text-primary" />
+          <span className="truncate font-medium">{nombre}</span>
+        </span>
+        <Button asChild size="sm" variant="outline">
+          <a href={url} target="_blank" rel="noreferrer" download>
+            <Download className="mr-1 h-4 w-4" /> Descargar
+          </a>
+        </Button>
+      </div>
+
+      {isPdf && (
+        <iframe src={url} title={nombre} className="h-[70vh] w-full rounded-lg border border-border" />
+      )}
+      {isImage && (
+        <img src={url} alt={nombre} className="max-h-[70vh] w-full rounded-lg border border-border object-contain" />
+      )}
+      {isOffice && (
+        <iframe
+          src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`}
+          title={nombre}
+          className="h-[70vh] w-full rounded-lg border border-border"
+        />
+      )}
+      {!isPdf && !isImage && !isOffice && (
+        <p className="text-sm text-muted-foreground">
+          Descarga el documento para leerlo a tu ritmo.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function LessonRenderer({ lesson }: { lesson: any }) {
+  if ((lesson.tipo === "archivo" || lesson.tipo === "pdf") && lesson.storage_path) {
+    return <MaterialLesson lesson={lesson} />;
+  }
   if (lesson.tipo === "video_url" && lesson.url_externa) {
     const url = lesson.url_externa as string;
     const yt = url.match(/(?:youtu\.be\/|v=)([\w-]+)/);
