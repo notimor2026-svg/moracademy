@@ -114,6 +114,7 @@ function Page() {
                         <Unlock className="mr-1 h-3.5 w-3.5" /> Desbloquear
                       </Button>
                     )}
+                    <ResetQuizButton assignment={r} onDone={() => qc.invalidateQueries({ queryKey: ["all-assignments"] })} />
                   </TableCell>
                 </TableRow>
               ))}
