@@ -33,6 +33,7 @@ function AdminLayout() {
     { to: "/admin/employees", label: "Empleados" },
     { to: "/admin/courses", label: "Cursos", creadorOk: true },
     { to: "/admin/assignments", label: "Asignaciones" },
+    { to: "/admin/certificates", label: "Certificados" },
     { to: "/admin/reports", label: "Reportes" },
     { to: "/admin/feedback", label: "Retroalimentación", superOnly: true },
     { to: "/admin/audit", label: "Auditoría" },
