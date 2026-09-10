@@ -202,3 +202,41 @@ function AssignDialog({ onDone }: { onDone: () => void }) {
     </Dialog>
   );
 }
+
+function ResetQuizButton({ assignment, onDone }: { assignment: any; onDone: () => void }) {
+  const fnReset = useServerFn(resetQuizAttempts);
+  const [revoke, setRevoke] = useState(false);
+  const m = useMutation({
+    mutationFn: () => fnReset({ data: { assignment_id: assignment.id, revoke_certificate: revoke } }),
+    onSuccess: () => { toast.success("Evaluaciones reiniciadas."); onDone(); },
+    onError: (e: any) => toast.error(e.message ?? "Error"),
+  });
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="ml-2" disabled={m.isPending}>
+          <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reiniciar
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Reiniciar las evaluaciones?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Se borrarán todos los intentos de <strong>{assignment.employees?.nombre}</strong> en el curso{" "}
+            <strong>{assignment.courses?.nombre}</strong>. Los intentos vuelven a 0 y el curso queda en curso.
+            Esta acción no se puede deshacer.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={revoke} onCheckedChange={(v) => setRevoke(!!v)} />
+          También anular el certificado emitido de este curso
+        </label>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={() => m.mutate()}>Reiniciar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
