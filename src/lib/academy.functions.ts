@@ -454,27 +454,9 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
         })
         .eq("id", assignment.id);
 
-      // Certificado
+      // Certificado (idempotente: nunca duplica)
       if (aprobado) {
-        const { data: course } = await supabaseAdmin
-          .from("courses")
-          .select("permite_certificado")
-          .eq("id", attempt.quizzes.course_id)
-          .single();
-        if (course?.permite_certificado) {
-          const codigo = `MA-${Date.now().toString(36).toUpperCase()}-${Math.random()
-            .toString(36)
-            .slice(2, 6)
-            .toUpperCase()}`;
-          await supabaseAdmin.from("certificates").insert({
-            assignment_id: assignment.id,
-            employee_id: emp!.id,
-            course_id: attempt.quizzes.course_id,
-            codigo,
-            nota: score,
-          });
-        }
-        await supabaseAdmin.rpc;
+        await issueCertificatesFor([assignment.id]);
       }
     }
 
