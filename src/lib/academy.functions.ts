@@ -58,7 +58,40 @@ async function syncCompletionWithoutQuiz(employeeId: string, courseId?: string) 
       .from("course_assignments")
       .update({ estado: "aprobado", fecha_finalizacion: new Date().toISOString() })
       .in("id", toApprove);
+    await issueCertificatesFor(toApprove);
   }
+}
+
+// Emite certificados faltantes para asignaciones ya aprobadas (idempotente).
+export async function issueCertificatesFor(assignmentIds: string[]) {
+  if (!assignmentIds.length) return 0;
+  const { data: assigns } = await supabaseAdmin
+    .from("course_assignments")
+    .select("id, employee_id, course_id, mejor_nota, estado, courses(permite_certificado, nota_minima)")
+    .in("id", assignmentIds)
+    .eq("estado", "aprobado");
+  if (!assigns?.length) return 0;
+  const { data: existing } = await supabaseAdmin
+    .from("certificates")
+    .select("assignment_id")
+    .in("assignment_id", assigns.map((a) => a.id));
+  const have = new Set((existing ?? []).map((c) => c.assignment_id));
+  const rows = assigns
+    .filter((a: any) => a.courses?.permite_certificado && !have.has(a.id))
+    .map((a: any) => ({
+      assignment_id: a.id,
+      employee_id: a.employee_id,
+      course_id: a.course_id,
+      nota: a.mejor_nota ?? 100,
+      codigo: `MA-${Date.now().toString(36).toUpperCase()}-${Math.random()
+        .toString(36)
+        .slice(2, 6)
+        .toUpperCase()}`,
+    }));
+  if (!rows.length) return 0;
+  const { error } = await supabaseAdmin.from("certificates").insert(rows);
+  if (error) return 0;
+  return rows.length;
 }
 
 
@@ -421,27 +454,9 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
         })
         .eq("id", assignment.id);
 
-      // Certificado
+      // Certificado (idempotente: nunca duplica)
       if (aprobado) {
-        const { data: course } = await supabaseAdmin
-          .from("courses")
-          .select("permite_certificado")
-          .eq("id", attempt.quizzes.course_id)
-          .single();
-        if (course?.permite_certificado) {
-          const codigo = `MA-${Date.now().toString(36).toUpperCase()}-${Math.random()
-            .toString(36)
-            .slice(2, 6)
-            .toUpperCase()}`;
-          await supabaseAdmin.from("certificates").insert({
-            assignment_id: assignment.id,
-            employee_id: emp!.id,
-            course_id: attempt.quizzes.course_id,
-            codigo,
-            nota: score,
-          });
-        }
-        await supabaseAdmin.rpc;
+        await issueCertificatesFor([assignment.id]);
       }
     }
 

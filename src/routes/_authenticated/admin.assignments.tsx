@@ -1,7 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listAllAssignments, listEmployees, listCoursesBasic, assignCourse, unblockAssignment } from "@/lib/hr.functions";
+import { listAllAssignments, listEmployees, listCoursesBasic, assignCourse, unblockAssignment, resetQuizAttempts } from "@/lib/hr.functions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Unlock, Search } from "lucide-react";
+import { Plus, Unlock, Search, RotateCcw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -103,6 +114,7 @@ function Page() {
                         <Unlock className="mr-1 h-3.5 w-3.5" /> Desbloquear
                       </Button>
                     )}
+                    <ResetQuizButton assignment={r} onDone={() => qc.invalidateQueries({ queryKey: ["all-assignments"] })} />
                   </TableCell>
                 </TableRow>
               ))}
@@ -188,5 +200,43 @@ function AssignDialog({ onDone }: { onDone: () => void }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ResetQuizButton({ assignment, onDone }: { assignment: any; onDone: () => void }) {
+  const fnReset = useServerFn(resetQuizAttempts);
+  const [revoke, setRevoke] = useState(false);
+  const m = useMutation({
+    mutationFn: () => fnReset({ data: { assignment_id: assignment.id, revoke_certificate: revoke } }),
+    onSuccess: () => { toast.success("Evaluaciones reiniciadas."); onDone(); },
+    onError: (e: any) => toast.error(e.message ?? "Error"),
+  });
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="ml-2" disabled={m.isPending}>
+          <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reiniciar
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Reiniciar las evaluaciones?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Se borrarán todos los intentos de <strong>{assignment.employees?.nombre}</strong> en el curso{" "}
+            <strong>{assignment.courses?.nombre}</strong>. Los intentos vuelven a 0 y el curso queda en curso.
+            Esta acción no se puede deshacer.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={revoke} onCheckedChange={(v) => setRevoke(!!v)} />
+          También anular el certificado emitido de este curso
+        </label>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={() => m.mutate()}>Reiniciar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

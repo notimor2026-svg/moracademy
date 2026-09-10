@@ -1233,3 +1233,89 @@ export const listCoursesLite = createServerFn({ method: "GET" })
       .from("courses").select("id, nombre").order("nombre");
     return data ?? [];
   });
+
+// ============== CERTIFICADOS (Admin) ==============
+
+export const listAllCertificates = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireRrhh(context.userId);
+    const { data } = await supabaseAdmin
+      .from("certificates")
+      .select("*, employees(id, nombre, dui, area, cargo), courses(id, nombre, duracion_min)")
+      .order("fecha_emision", { ascending: false })
+      .limit(2000);
+    return data ?? [];
+  });
+
+// Emite los certificados que falten para cursos ya aprobados.
+export const issueMissingCertificates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireRrhh(context.userId);
+    const { data: assigns } = await supabaseAdmin
+      .from("course_assignments")
+      .select("id")
+      .eq("estado", "aprobado");
+    const { issueCertificatesFor } = await import("@/lib/academy.functions");
+    const created = await issueCertificatesFor((assigns ?? []).map((a) => a.id));
+    return { created };
+  });
+
+// Reinicia los intentos de evaluación de un empleado en un curso.
+export const resetQuizAttempts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        assignment_id: z.string().uuid(),
+        revoke_certificate: z.boolean().optional().default(false),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRrhh(context.userId);
+    const { data: assignment } = await supabaseAdmin
+      .from("course_assignments")
+      .select("id, employee_id, course_id")
+      .eq("id", data.assignment_id)
+      .maybeSingle();
+    if (!assignment) throw new Error("Asignación no encontrada.");
+
+    const { data: quizzes } = await supabaseAdmin
+      .from("quizzes")
+      .select("id")
+      .eq("course_id", assignment.course_id);
+    const quizIds = (quizzes ?? []).map((q) => q.id);
+    if (quizIds.length) {
+      await supabaseAdmin
+        .from("quiz_attempts")
+        .delete()
+        .eq("employee_id", assignment.employee_id)
+        .in("quiz_id", quizIds);
+    }
+
+    if (data.revoke_certificate) {
+      await supabaseAdmin.from("certificates").delete().eq("assignment_id", assignment.id);
+    }
+
+    await supabaseAdmin
+      .from("course_assignments")
+      .update({
+        estado: "en_curso",
+        intentos_consumidos: 0,
+        mejor_nota: null,
+        fecha_finalizacion: null,
+      })
+      .eq("id", assignment.id);
+
+    await supabaseAdmin.from("audit_log").insert({
+      actor_id: context.userId,
+      accion: "reset_quiz",
+      entidad: "course_assignments",
+      entidad_id: assignment.id,
+      payload: { revoke_certificate: data.revoke_certificate },
+    });
+
+    return { ok: true, deleted_attempts: quizIds.length > 0 };
+  });
