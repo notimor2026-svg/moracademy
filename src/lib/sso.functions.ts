@@ -22,26 +22,33 @@ export const exchangeSsoTicket = createServerFn({ method: "POST" })
       email?: string; full_name?: string; dui?: string; roles?: string[];
     };
     let email = info.email?.trim().toLowerCase();
-    const dui = (data.dui || info.dui || "").trim() || null;
+    const rawDui = (data.dui || info.dui || "").trim();
+    const digits = rawDui.replace(/\D/g, "");
+    const dui = digits.length === 9 ? `${digits.slice(0, 8)}-${digits.slice(8)}` : rawDui || null;
+    const duiVariants = dui ? Array.from(new Set([dui, digits].filter(Boolean))) : [];
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // 1. Buscar primero por DUI: si el empleado ya tiene cuenta, usarla
+    // 1. Buscar primero por DUI (con o sin guion): si el empleado ya tiene cuenta, usarla
     let userId: string | null = null;
     let employeeFound = false;
+    let employeeId: string | null = null;
     if (dui) {
       const { data: emp } = await supabaseAdmin
         .from("employees")
-        .select("auth_user_id")
-        .eq("dui", dui)
+        .select("id, auth_user_id")
+        .in("dui", duiVariants)
+        .limit(1)
         .maybeSingle();
       employeeFound = !!emp;
+      employeeId = emp?.id ?? null;
       if (emp?.auth_user_id) {
         userId = emp.auth_user_id;
         const { data: u } = await supabaseAdmin.auth.admin.getUserById(userId);
         if (u.user?.email) email = u.user.email.toLowerCase();
       }
     }
+    const portalEmail = info.email?.trim().toLowerCase() || null;
 
     // 2. Si no hay DUI vinculado, buscar usuario existente por email
     if (!userId && email) {
@@ -80,13 +87,16 @@ export const exchangeSsoTicket = createServerFn({ method: "POST" })
         .insert(roles.map((role) => ({ user_id: userId!, role })));
     }
 
-    // Vincular con el empleado existente (si aún no tiene cuenta)
-    if (dui) {
+    // Vincular con el empleado existente y asociar el correo del Portal al DUI
+    if (employeeId) {
       await supabaseAdmin
         .from("employees")
         .update({ auth_user_id: userId })
-        .eq("dui", dui)
+        .eq("id", employeeId)
         .is("auth_user_id", null);
+      if (portalEmail) {
+        await supabaseAdmin.from("employees").update({ email: portalEmail }).eq("id", employeeId);
+      }
     }
 
     if (!email) throw new Error("Respuesta inválida");
