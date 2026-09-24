@@ -5,7 +5,9 @@ const VALID_ROLES = ["colaborador", "rrhh", "jefe_directo", "super_admin", "crea
 type Role = (typeof VALID_ROLES)[number];
 
 export const exchangeSsoTicket = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ ticket: z.string().min(1).max(4096) }).parse(d))
+  .inputValidator((d) =>
+    z.object({ ticket: z.string().min(1).max(4096), dui: z.string().trim().max(20).optional() }).parse(d),
+  )
   .handler(async ({ data }) => {
     const secret = process.env["PORTAL_SSO_SECRET"];
     if (!secret) throw new Error("SSO no configurado");
