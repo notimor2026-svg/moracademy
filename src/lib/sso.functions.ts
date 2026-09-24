@@ -5,7 +5,9 @@ const VALID_ROLES = ["colaborador", "rrhh", "jefe_directo", "super_admin", "crea
 type Role = (typeof VALID_ROLES)[number];
 
 export const exchangeSsoTicket = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ ticket: z.string().min(1).max(4096) }).parse(d))
+  .inputValidator((d) =>
+    z.object({ ticket: z.string().min(1).max(4096), dui: z.string().trim().max(20).optional() }).parse(d),
+  )
   .handler(async ({ data }) => {
     const secret = process.env["PORTAL_SSO_SECRET"];
     if (!secret) throw new Error("SSO no configurado");
@@ -20,17 +22,20 @@ export const exchangeSsoTicket = createServerFn({ method: "POST" })
       email?: string; full_name?: string; dui?: string; roles?: string[];
     };
     let email = info.email?.trim().toLowerCase();
+    const dui = (data.dui || info.dui || "").trim() || null;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // 1. Buscar primero por DUI: si el empleado ya tiene cuenta, usarla
     let userId: string | null = null;
-    if (info.dui) {
+    let employeeFound = false;
+    if (dui) {
       const { data: emp } = await supabaseAdmin
         .from("employees")
         .select("auth_user_id")
-        .eq("dui", info.dui)
+        .eq("dui", dui)
         .maybeSingle();
+      employeeFound = !!emp;
       if (emp?.auth_user_id) {
         userId = emp.auth_user_id;
         const { data: u } = await supabaseAdmin.auth.admin.getUserById(userId);
@@ -49,13 +54,19 @@ export const exchangeSsoTicket = createServerFn({ method: "POST" })
       }
     }
 
-    // 3. Si tampoco existe, crear el usuario
+    // 3. Antes de crear una cuenta nueva, pedir el DUI al empleado
+    //    (puede tener una ficha de empleado que el ticket no trajo)
+    if (!userId && !employeeFound && !data.dui) {
+      throw new Error("NEEDS_DUI");
+    }
+
+    // 4. Si tampoco existe, crear el usuario
     if (!userId) {
       if (!email) throw new Error("Respuesta inválida");
       const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
         email,
         email_confirm: true,
-        user_metadata: { nombre: info.full_name, dui: info.dui },
+        user_metadata: { nombre: info.full_name, dui },
       });
       if (error || !created.user) throw new Error("No se pudo crear el usuario");
       userId = created.user.id;
@@ -70,11 +81,11 @@ export const exchangeSsoTicket = createServerFn({ method: "POST" })
     }
 
     // Vincular con el empleado existente (si aún no tiene cuenta)
-    if (info.dui) {
+    if (dui) {
       await supabaseAdmin
         .from("employees")
         .update({ auth_user_id: userId })
-        .eq("dui", info.dui)
+        .eq("dui", dui)
         .is("auth_user_id", null);
     }
 
