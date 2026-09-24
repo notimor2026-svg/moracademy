@@ -87,13 +87,16 @@ export const exchangeSsoTicket = createServerFn({ method: "POST" })
         .insert(roles.map((role) => ({ user_id: userId!, role })));
     }
 
-    // Vincular con el empleado existente (si aún no tiene cuenta)
-    if (dui) {
+    // Vincular con el empleado existente y asociar el correo del Portal al DUI
+    if (employeeId) {
       await supabaseAdmin
         .from("employees")
         .update({ auth_user_id: userId })
-        .eq("dui", dui)
+        .eq("id", employeeId)
         .is("auth_user_id", null);
+      if (portalEmail) {
+        await supabaseAdmin.from("employees").update({ email: portalEmail }).eq("id", employeeId);
+      }
     }
 
     if (!email) throw new Error("Respuesta inválida");
