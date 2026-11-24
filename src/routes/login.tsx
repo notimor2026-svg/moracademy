@@ -15,9 +15,10 @@ export const Route = createFileRoute("/login")({ component: LoginPage });
 
 function LoginPage() {
   const [dui, setDui] = useState("");
+  const [tempPin, setTempPin] = useState("");
   const [pin, setPin] = useState("");
   const [pin2, setPin2] = useState("");
-  const [step, setStep] = useState<"dui" | "login" | "setup">("dui");
+  const [step, setStep] = useState<"dui" | "temp" | "login" | "setup">("dui");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { session } = useAuth();
@@ -48,18 +49,33 @@ function LoginPage() {
     try {
       if (step === "dui") {
         const { needsSetup } = await post({ dui: v, mode: "check" });
-        setStep(needsSetup ? "setup" : "login");
+        setStep(needsSetup ? "temp" : "login");
+        return;
+      }
+      if (step === "temp") {
+        if (!isValidPin(tempPin)) {
+          toast.error("El PIN temporal debe tener 6 dígitos.");
+          return;
+        }
+        await post({ dui: v, pin: tempPin, mode: "verify-temp" });
+        setStep("setup");
         return;
       }
       if (!isValidPin(pin)) {
         toast.error("El PIN debe tener 6 dígitos.");
         return;
       }
+      if (step === "setup" && pin === "000000") {
+        toast.error("Elige un PIN personal diferente de 000000.");
+        return;
+      }
       if (step === "setup" && pin !== pin2) {
         toast.error("Los PIN no coinciden.");
         return;
       }
-      const body = await post({ dui: v, pin, mode: step });
+      const body = await post(
+        step === "setup" ? { dui: v, tempPin, pin, mode: "setup" } : { dui: v, pin, mode: "login" },
+      );
       const { error } = await supabase.auth.setSession({
         access_token: body.access_token,
         refresh_token: body.refresh_token,
@@ -108,9 +124,11 @@ function LoginPage() {
             Inicia sesión
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {step === "setup"
-              ? "Primer ingreso: crea tu PIN personal de 6 dígitos."
-              : "Ingresa con tu DUI y tu PIN personal."}
+            {step === "temp"
+              ? "Primer ingreso: ingresa tu PIN temporal (000000)."
+              : step === "setup"
+                ? "Cambia tu PIN temporal por un PIN personal de 6 dígitos."
+                : "Ingresa con tu DUI y tu PIN personal."}
           </p>
           <form onSubmit={onSubmit} className="mt-8 space-y-5">
             <div className="space-y-2">
@@ -123,6 +141,9 @@ function LoginPage() {
                 onChange={(e) => {
                   setDui(e.target.value);
                   setStep("dui");
+                  setTempPin("");
+                  setPin("");
+                  setPin2("");
                 }}
                 maxLength={10}
                 autoFocus
@@ -131,9 +152,26 @@ function LoginPage() {
                 Si tu DUI no es reconocido, contacta a Recursos Humanos.
               </p>
             </div>
-            {step !== "dui" && (
+            {step === "temp" && (
               <div className="space-y-2">
-                <Label htmlFor="pin">{step === "setup" ? "Crea tu PIN (6 dígitos)" : "PIN"}</Label>
+                <Label htmlFor="tempPin">PIN temporal</Label>
+                <Input
+                  id="tempPin"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="000000"
+                  value={tempPin}
+                  onChange={(e) => setTempPin(e.target.value.replace(/\D/g, ""))}
+                  maxLength={6}
+                />
+              </div>
+            )}
+            {(step === "login" || step === "setup") && (
+              <div className="space-y-2">
+                <Label htmlFor="pin">
+                  {step === "setup" ? "Nuevo PIN personal (6 dígitos)" : "PIN"}
+                </Label>
                 <Input
                   id="pin"
                   type="password"
@@ -148,7 +186,7 @@ function LoginPage() {
             )}
             {step === "setup" && (
               <div className="space-y-2">
-                <Label htmlFor="pin2">Confirma tu PIN</Label>
+                <Label htmlFor="pin2">Confirma tu nuevo PIN</Label>
                 <Input
                   id="pin2"
                   type="password"
@@ -167,10 +205,10 @@ function LoginPage() {
             <Button type="submit" className="w-full" disabled={submitting} size="lg">
               {submitting ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verificando…</>
-              ) : step === "dui" ? (
+              ) : step === "dui" || step === "temp" ? (
                 "Continuar"
               ) : step === "setup" ? (
-                "Crear PIN y entrar"
+                "Guardar PIN y entrar"
               ) : (
                 "Acceder a MOR ACADEMY"
               )}

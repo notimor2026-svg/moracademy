@@ -32,6 +32,8 @@ const genericError = () =>
     { status: 401 },
   );
 
+const TEMP_PIN = "000000";
+
 export const Route = createFileRoute("/api/auth/dui-login")({
   server: {
     handlers: {
@@ -39,7 +41,8 @@ export const Route = createFileRoute("/api/auth/dui-login")({
         const body = (await request.json()) as {
           dui?: string;
           pin?: string;
-          mode?: "check" | "login" | "setup";
+          tempPin?: string;
+          mode?: "check" | "verify-temp" | "login" | "setup";
         };
         const dui = body.dui?.trim() ?? "";
         const mode = body.mode ?? "login";
@@ -84,8 +87,20 @@ export const Route = createFileRoute("/api/auth/dui-login")({
         }
         if (!emp) return genericError();
 
+        if (mode === "verify-temp") {
+          if (pinRow || !safeEqual(pin, TEMP_PIN)) return genericError();
+          return Response.json({ ok: true });
+        }
+
         if (mode === "setup") {
-          if (pinRow) return genericError();
+          const tempPin = body.tempPin?.trim() ?? "";
+          if (pinRow || !safeEqual(tempPin, TEMP_PIN)) return genericError();
+          if (safeEqual(pin, TEMP_PIN)) {
+            return Response.json(
+              { error: "Elige un PIN personal diferente de 000000." },
+              { status: 400 },
+            );
+          }
           const { error: insErr } = await supabaseAdmin
             .from("employee_pins")
             .insert({ employee_id: emp.id, pin_hash: pinHash(dui, pin) });
